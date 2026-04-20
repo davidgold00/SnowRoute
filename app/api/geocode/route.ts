@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
-
 import { geocodeLocation } from "@/lib/routing";
 import { geocodeQuerySchema } from "@/lib/types";
+import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {

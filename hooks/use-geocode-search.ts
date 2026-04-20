@@ -5,8 +5,6 @@ import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { LocationSuggestion } from "@/lib/types";
 
-const searchCache = new Map<string, LocationSuggestion[]>();
-
 export function useGeocodeSearch(query: string, enabled = true) {
   const normalizedQuery = query.trim();
   const debouncedQuery = useDebouncedValue(normalizedQuery, 300);
@@ -14,11 +12,9 @@ export function useGeocodeSearch(query: string, enabled = true) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isActiveQuery = enabled && debouncedQuery.length >= 2;
-  const cacheKey = debouncedQuery.toLowerCase();
-  const cachedSuggestions = isActiveQuery ? searchCache.get(cacheKey) ?? null : null;
 
   useEffect(() => {
-    if (!isActiveQuery || cachedSuggestions) {
+    if (!isActiveQuery) {
       return;
     }
 
@@ -45,7 +41,6 @@ export function useGeocodeSearch(query: string, enabled = true) {
         }
 
         const payload = (await response.json()) as LocationSuggestion[];
-        searchCache.set(cacheKey, payload);
         setSuggestions(payload);
       } catch (fetchError) {
         if (abortController.signal.aborted) {
@@ -70,11 +65,11 @@ export function useGeocodeSearch(query: string, enabled = true) {
     return () => {
       abortController.abort();
     };
-  }, [cacheKey, cachedSuggestions, debouncedQuery, isActiveQuery]);
+  }, [debouncedQuery, isActiveQuery]);
 
   return {
-    suggestions: isActiveQuery ? cachedSuggestions ?? suggestions : [],
-    isLoading: isActiveQuery && !cachedSuggestions ? isLoading : false,
-    error: isActiveQuery && !cachedSuggestions ? error : null,
+    suggestions: isActiveQuery ? suggestions : [],
+    isLoading: isActiveQuery ? isLoading : false,
+    error: isActiveQuery ? error : null,
   };
 }

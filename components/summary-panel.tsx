@@ -125,6 +125,12 @@ export function SummaryPanel({
           </p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Samples</p>
+          <p className="mt-2 text-2xl font-semibold text-white">
+            {analysis.samples.length}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Worst segment</p>
           <div className="mt-2 flex items-center gap-3">
             <p className="text-2xl font-semibold text-white">{analysis.summary.maxScore}</p>
@@ -133,6 +139,18 @@ export function SummaryPanel({
         </div>
       </div>
 
+      <div className="mt-6 flex flex-wrap gap-2">
+        {["OpenRouteService routing", "Open-Meteo forecast", "ETA-matched scoring"].map(
+          (item) => (
+            <span
+              key={item}
+              className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-slate-300"
+            >
+              {item}
+            </span>
+          ),
+        )}
+      </div>
       <div className="mt-6 rounded-3xl border border-white/10 bg-[linear-gradient(160deg,rgba(154,211,255,0.14),rgba(255,255,255,0.03))] p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/80">
           Recommendation

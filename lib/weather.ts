@@ -3,16 +3,17 @@ import "server-only";
 import { differenceInCalendarDays } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
 
+import {
+  PublicHttpError,
+  createBoundedCache,
+  fetchJsonWithTimeout,
+} from "@/lib/server-security";
 import type { Coordinate, NormalizedWeatherSnapshot } from "@/lib/types";
 
 const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
 const WEATHER_TTL_MS = 1000 * 60 * 15;
 const MAX_MATCH_DISTANCE_MS = 1000 * 60 * 60 * 2;
-
-type CacheEntry<T> = {
-  expiresAt: number;
-  value: T;
-};
+const WEATHER_TIMEOUT_MS = 8000;
 
 type ForecastRow = {
   timeUtc: string;
@@ -56,7 +57,7 @@ type WeatherSampleInput = {
   etaUtc: string;
 };
 
-const forecastCache = new Map<string, CacheEntry<ForecastSeries>>();
+const forecastCache = createBoundedCache<ForecastSeries>(160);
 
 const WEATHER_CODE_LABELS: Record<number, string> = {
   0: "Clear skies",
@@ -91,33 +92,6 @@ const WEATHER_CODE_LABELS: Record<number, string> = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
-}
-
-function getCachedValue<T>(cache: Map<string, CacheEntry<T>>, key: string) {
-  const cached = cache.get(key);
-
-  if (!cached) {
-    return null;
-  }
-
-  if (cached.expiresAt < Date.now()) {
-    cache.delete(key);
-    return null;
-  }
-
-  return cached.value;
-}
-
-function setCachedValue<T>(
-  cache: Map<string, CacheEntry<T>>,
-  key: string,
-  ttlMs: number,
-  value: T,
-) {
-  cache.set(key, {
-    expiresAt: Date.now() + ttlMs,
-    value,
-  });
 }
 
 function getBucketKey(coordinate: Coordinate) {
@@ -160,7 +134,7 @@ async function fetchForecastSeries(
   forecastDays: number,
 ): Promise<ForecastSeries> {
   const bucketKey = `${getBucketKey(coordinate)}:${forecastDays}`;
-  const cached = getCachedValue(forecastCache, bucketKey);
+  const cached = forecastCache.get(bucketKey);
 
   if (cached) {
     return cached;
@@ -183,17 +157,26 @@ async function fetchForecastSeries(
     ].join(","),
   });
 
-  const response = await fetch(`${OPEN_METEO_URL}?${params}`, {
-    headers: {
-      Accept: "application/json",
+  const response = await fetchJsonWithTimeout<OpenMeteoResponse>(
+    `${OPEN_METEO_URL}?${params}`,
+    {
+      timeoutMs: WEATHER_TIMEOUT_MS,
+      publicErrorMessage: "The weather provider took too long to respond.",
+      headers: {
+        Accept: "application/json",
+      },
+      next: {
+        revalidate: 60 * 15,
+      },
     },
-    next: {
-      revalidate: 60 * 15,
-    },
-  });
+  );
 
   if (!response.ok) {
-    throw new Error(`Weather request failed with status ${response.status}.`);
+    throw new PublicHttpError(
+      502,
+      "Weather data is temporarily unavailable.",
+      "WEATHER_UPSTREAM_FAILED",
+    );
   }
 
   const payload = (await response.json()) as OpenMeteoResponse;
@@ -222,7 +205,7 @@ async function fetchForecastSeries(
     rows,
   };
 
-  setCachedValue(forecastCache, bucketKey, WEATHER_TTL_MS, series);
+  forecastCache.set(bucketKey, series, WEATHER_TTL_MS);
 
   return series;
 }

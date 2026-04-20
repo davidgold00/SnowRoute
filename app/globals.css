@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #08111e;
+  --background: #07111b;
   --foreground: #eef4ff;
+  --surface: rgba(8, 18, 31, 0.84);
+  --surface-strong: rgba(7, 14, 25, 0.94);
+  --surface-soft: rgba(255, 255, 255, 0.05);
+  --border-soft: rgba(161, 196, 255, 0.12);
+  --border-strong: rgba(151, 216, 255, 0.2);
+  --accent: #89d8ff;
   --font-body: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia,
     serif;
@@ -28,6 +34,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-body);
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
 }
 
 body::before {
@@ -35,9 +43,10 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(circle at top left, rgba(100, 181, 246, 0.2), transparent 36%),
-    radial-gradient(circle at 80% 15%, rgba(125, 211, 252, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(11, 23, 42, 0.98), rgba(7, 15, 29, 1));
+    radial-gradient(circle at 12% 8%, rgba(109, 196, 255, 0.2), transparent 26%),
+    radial-gradient(circle at 88% 0%, rgba(94, 234, 212, 0.12), transparent 24%),
+    radial-gradient(circle at 70% 58%, rgba(77, 181, 245, 0.11), transparent 30%),
+    linear-gradient(180deg, #0d1b2c 0%, #08111d 38%, #050b13 100%);
   content: "";
 }
 
@@ -48,9 +57,9 @@ body::after {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 84px 84px;
-  mask-image: radial-gradient(circle at center, black, transparent 82%);
-  opacity: 0.18;
+  background-size: 88px 88px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+  opacity: 0.16;
   content: "";
 }
 
@@ -62,27 +71,148 @@ body::after {
 .display-type {
   font-family: var(--font-display);
   letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(193, 224, 255, 0.76);
 }
 
 .glass-panel {
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
-    rgba(9, 18, 32, 0.8);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015) 22%),
+    linear-gradient(145deg, rgba(137, 216, 255, 0.08), transparent 32%),
+    var(--surface);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    0 28px 90px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(24px);
 }
 
+.glass-panel::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at top right, rgba(137, 216, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 35%);
+  pointer-events: none;
+  content: "";
+}
+
+.glass-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-shell::after {
+  position: absolute;
+  right: -6rem;
+  top: -7rem;
+  z-index: 0;
+  height: 22rem;
+  width: 22rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(137, 216, 255, 0.16), transparent 68%);
+  filter: blur(16px);
+  pointer-events: none;
+  content: "";
+}
+
+.panel-muted {
+  border: 1px solid var(--border-soft);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(8, 18, 31, 0.64);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.metric-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(7, 16, 28, 0.74);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 14px 30px rgba(0, 0, 0, 0.18);
+}
+
+.metric-card::before {
+  position: absolute;
+  inset: auto -12% -60% auto;
+  height: 9rem;
+  width: 9rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(137, 216, 255, 0.16), transparent 70%);
+  pointer-events: none;
+  content: "";
+}
+
+.metric-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.signal-bar {
+  background:
+    linear-gradient(90deg, #4fd1c5 0%, #87d6ff 34%, #facc15 66%, #fb7185 100%);
+}
+
+.map-shell {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
+    var(--surface-strong);
+  box-shadow:
+    0 28px 80px rgba(2, 8, 18, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.map-shell::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at top left, rgba(137, 216, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 20%);
+  pointer-events: none;
+  content: "";
+}
+
 .map-shell .leaflet-container {
-  background: #0b1322;
+  background: #09111d;
 }
 
 .map-shell .leaflet-popup-content-wrapper,
 .map-shell .leaflet-popup-tip {
   background: rgba(248, 250, 252, 0.96);
   color: #0f172a;
+}
+
+.map-shell .leaflet-control-zoom a,
+.map-shell .leaflet-control-zoom a:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(8, 18, 31, 0.88);
+  color: #e5f2ff;
+}
+
+.map-shell .leaflet-control-attribution {
+  background: rgba(8, 18, 31, 0.72);
+  color: rgba(207, 226, 248, 0.8);
+}
+
+.map-shell .leaflet-control-attribution a {
+  color: #9fdcff;
 }
 
 *::-webkit-scrollbar {
@@ -101,4 +231,23 @@ body::after {
 
 *::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.38);
+}
+
+@keyframes lift-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .glass-panel,
+  .map-shell {
+    animation: lift-in 560ms ease both;
+  }
 }

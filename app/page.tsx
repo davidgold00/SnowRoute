@@ -1,18 +1,30 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { startTransition, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 
+import { RecommendationPill, RiskPill } from "@/components/status-pill";
 import { RouteForm, type EditableStop } from "@/components/route-form";
 import { SegmentTable } from "@/components/segment-table";
 import { SummaryPanel } from "@/components/summary-panel";
+import { readServerMessage } from "@/lib/request-state";
 import type { LocationSuggestion, RouteAnalysisResponse } from "@/lib/types";
 
 const RouteMap = dynamic(() => import("@/components/route-map"), {
   ssr: false,
   loading: () => (
-    <div className="map-shell flex min-h-[520px] items-center justify-center rounded-[30px] border border-white/10 bg-[#0b1322]/80">
-      <p className="text-sm text-slate-300">Loading route canvas…</p>
+    <div className="map-shell rounded-[32px] border border-white/10 p-10">
+      <div className="flex min-h-[540px] flex-col items-center justify-center gap-4 text-center">
+        <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-100">
+          Route canvas
+        </div>
+        <div className="space-y-2">
+          <h2 className="display-type text-3xl text-white">Loading weather-aware map layers</h2>
+          <p className="max-w-md text-sm leading-6 text-slate-300">
+            Building the map surface, segment colors, and interactive checkpoints.
+          </p>
+        </div>
+      </div>
     </div>
   ),
 });
@@ -22,8 +34,18 @@ const RiskTimeline = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="glass-panel flex min-h-[468px] items-center justify-center rounded-[28px] p-6">
-        <p className="text-sm text-slate-300">Loading risk timeline…</p>
+      <div className="glass-panel rounded-[32px] p-6">
+        <div className="flex min-h-[460px] flex-col items-center justify-center gap-4 text-center">
+          <div className="rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-200">
+            Risk timeline
+          </div>
+          <div className="space-y-2">
+            <h2 className="display-type text-3xl text-white">Loading score progression</h2>
+            <p className="max-w-md text-sm leading-6 text-slate-300">
+              Preparing the ETA-synced risk curve across the drive.
+            </p>
+          </div>
+        </div>
       </div>
     ),
   },
@@ -62,19 +84,6 @@ function getDefaultDepartureTime() {
   return formatLocalDateTime(date);
 }
 
-function getErrorMessage(payload: unknown) {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "message" in payload &&
-    typeof payload.message === "string"
-  ) {
-    return payload.message;
-  }
-
-  return "SnowRoute could not analyze that route.";
-}
-
 export default function Home() {
   const [origin, setOrigin] = useState<EditableStop>(() => createStop("origin"));
   const [destination, setDestination] = useState<EditableStop>(() =>
@@ -88,6 +97,7 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
   const clientTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
   function handleStopChange(
@@ -135,6 +145,9 @@ export default function Home() {
 
     setIsSubmitting(true);
     setAnalysisError(null);
+    analyzeAbortRef.current?.abort();
+    const abortController = new AbortController();
+    analyzeAbortRef.current = abortController;
 
     try {
       const response = await fetch("/api/analyze", {
@@ -142,6 +155,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
+        signal: abortController.signal,
         body: JSON.stringify({
           origin: origin.selected,
           destination: destination.selected,
@@ -156,7 +170,9 @@ export default function Home() {
       const payload = (await response.json()) as RouteAnalysisResponse | { message: string };
 
       if (!response.ok) {
-        throw new Error(getErrorMessage(payload));
+        throw new Error(
+          readServerMessage(payload, "SnowRoute could not analyze that route."),
+        );
       }
 
       const nextAnalysis = payload as RouteAnalysisResponse;
@@ -170,72 +186,231 @@ export default function Home() {
         setActiveSampleId(highestRiskSample?.id ?? null);
       });
     } catch (error) {
+      if (abortController.signal.aborted) {
+        return;
+      }
+
       setAnalysisError(
         error instanceof Error
           ? error.message
           : "SnowRoute could not analyze that route right now.",
       );
     } finally {
-      setIsSubmitting(false);
+      if (!abortController.signal.aborted) {
+        setIsSubmitting(false);
+        analyzeAbortRef.current = null;
+      }
     }
   }
 
+  function handleReset() {
+    analyzeAbortRef.current?.abort();
+    setOrigin(createStop("origin"));
+    setDestination(createStop("destination"));
+    setWaypoints([]);
+    setDepartureTimeLocal(getDefaultDepartureTime());
+    setAnalysis(null);
+    setAnalysisError(null);
+    setActiveSampleId(null);
+    setIsSubmitting(false);
+  }
+
+  const capabilityCards = [
+    {
+      title: "Space + time aware",
+      body: "Forecasts are matched to each sampled checkpoint at the moment your vehicle is expected to reach it.",
+    },
+    {
+      title: "Transparent scoring",
+      body: "Snow, ice proxy, visibility, wind, hazardous codes, and night driving each surface as readable factors.",
+    },
+    {
+      title: "Operator-ready output",
+      body: "Map segments, hazard windows, recommendation logic, and checkpoint tables all stay synchronized.",
+    },
+  ];
+
+  const workflowSteps = [
+    {
+      step: "01",
+      title: "Lock the route",
+      body: "Pin precise stops through autocomplete so route geometry and ETAs stay trustworthy.",
+    },
+    {
+      step: "02",
+      title: "Match forecast to ETA",
+      body: "SnowRoute samples along the line of travel instead of treating the drive like two fixed endpoints.",
+    },
+    {
+      step: "03",
+      title: "Decide with context",
+      body: "You get score drivers, hazard windows, and a recommendation tuned for real trip planning.",
+    },
+  ];
+
+  const latestRouteName =
+    origin.selected?.label && destination.selected?.label
+      ? `${origin.selected.label} to ${destination.selected.label}`
+      : "Latest analyzed route";
+
+  const analysisSnapshot = analysis
+    ? [
+        {
+          label: "Overall score",
+          value: analysis.summary.overallScore.toString(),
+          detail: analysis.summary.overallLabel,
+        },
+        {
+          label: "Worst segment",
+          value: analysis.summary.maxScore.toString(),
+          detail: analysis.summary.worstSegmentId ? "Flagged segment" : "No critical segment",
+        },
+        {
+          label: "Hazard windows",
+          value: analysis.hazardWindows.length.toString(),
+          detail:
+            analysis.hazardWindows.length > 0 ? "Time blocks flagged" : "No sustained window",
+        },
+        {
+          label: "Sampled checkpoints",
+          value: analysis.samples.length.toString(),
+          detail: "ETA-matched forecast points",
+        },
+      ]
+    : [];
+
   return (
-    <div className="min-h-screen pb-14">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <header className="rounded-[32px] border border-white/10 bg-white/[0.025] px-6 py-7 shadow-[0_24px_80px_rgba(3,9,20,0.35)] lg:px-8">
-          <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-            <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100">
-                SnowRoute
+    <div className="min-h-screen pb-16">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <header className="glass-panel hero-shell rounded-[36px] px-6 py-7 lg:px-8 lg:py-8">
+          <div className="grid gap-8 xl:grid-cols-[1.16fr_0.84fr]">
+            <div className="space-y-8">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100">
+                  SnowRoute
+                </div>
+                <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium uppercase tracking-[0.22em] text-slate-200">
+                  Winter route analytics
+                </div>
               </div>
-              <div className="space-y-4">
-                <h1 className="display-type max-w-4xl text-5xl leading-[0.95] text-white sm:text-6xl">
-                  Intelligent winter driving risk across the full route, not just the endpoints.
+
+              <div className="space-y-5">
+                <p className="eyebrow">Route intelligence for winter operations</p>
+                <h1 className="display-type max-w-4xl text-5xl leading-[0.92] text-white sm:text-6xl lg:text-[4.35rem]">
+                  Professional-grade winter driving risk, mapped across the full trip.
                 </h1>
                 <p className="max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
-                  Route geometry, ETA-aware weather matching, and transparent winter hazard
-                  scoring combine into a map-first analytics workflow built for real travel
-                  decisions.
+                  Evaluate the route geometry, forecast timing, and hazard build-up together.
+                  SnowRoute turns a winter drive into a decision surface instead of a weather guess.
                 </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {capabilityCards.map((item) => (
+                  <div key={item.title} className="metric-card rounded-[26px] p-4">
+                    <p className="text-sm font-semibold text-white">{item.title}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              {[
-                {
-                  title: "Space + time aware",
-                  body: "Forecasts are matched to each sampled checkpoint at the moment you are expected to reach it.",
-                },
-                {
-                  title: "Transparent scoring",
-                  body: "Snow, ice proxy, visibility, wind, hazardous codes, and night driving each contribute openly.",
-                },
-                {
-                  title: "Actionable output",
-                  body: "Map segments, hazard windows, recommendation logic, and a route table stay synced off one payload.",
-                },
-              ].map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-3xl border border-white/10 bg-white/[0.03] p-4"
-                >
-                  <p className="text-sm font-semibold text-white">{item.title}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-1">
+              <div className="panel-muted rounded-[30px] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="eyebrow">Analysis spine</p>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
+                    Live workflow
+                  </span>
                 </div>
-              ))}
+                <div className="mt-5 space-y-4">
+                  {workflowSteps.map((item) => (
+                    <div key={item.step} className="flex gap-4">
+                      <div className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-100">
+                        {item.step}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{item.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-slate-300">{item.body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="metric-card rounded-[26px] p-4">
+                  <p className="eyebrow">Forecast engine</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">ETA-matched</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    Sample points are scored at the hour the vehicle is expected to arrive.
+                  </p>
+                </div>
+                <div className="metric-card rounded-[26px] p-4">
+                  <p className="eyebrow">Decision layer</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">Explainable</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    Each segment can be traced back to visible hazard drivers instead of a black box.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </header>
 
         {analysisError ? (
-          <div className="mt-6 rounded-3xl border border-rose-300/25 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-            {analysisError}
+          <div className="mt-6 rounded-[30px] border border-rose-300/20 bg-[linear-gradient(135deg,rgba(251,113,133,0.14),rgba(255,255,255,0.03))] px-5 py-4 text-sm text-rose-50 shadow-[0_18px_48px_rgba(37,9,15,0.24)]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="eyebrow text-rose-100/80">Analysis issue</p>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-rose-50">{analysisError}</p>
+              </div>
+              {analysis ? (
+                <span className="rounded-full border border-rose-100/15 bg-rose-50/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-100">
+                  Prior analysis preserved
+                </span>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
-        <main className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-          <section className="space-y-6">
+        {analysis ? (
+          <section className="glass-panel mt-6 rounded-[32px] p-5 lg:p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-3">
+                <p className="eyebrow">Latest analysis</p>
+                <div>
+                  <h2 className="display-type text-3xl text-white sm:text-4xl">
+                    {latestRouteName}
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                    The live dashboard below is synchronized around the most recent route analysis,
+                    from the colored geometry to the checkpoint detail table.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <RiskPill label={analysis.summary.overallLabel} />
+                <RecommendationPill recommendation={analysis.summary.recommendation} />
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {analysisSnapshot.map((item) => (
+                <div key={item.label} className="metric-card rounded-[24px] p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    {item.label}
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold text-white">{item.value}</p>
+                  <p className="mt-2 text-sm text-slate-300">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <main className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.68fr)]">
+          <section className="min-w-0 space-y-6">
             <RouteForm
               origin={origin}
               destination={destination}
@@ -243,6 +418,7 @@ export default function Home() {
               departureTimeLocal={departureTimeLocal}
               timeZone={clientTimeZone}
               isSubmitting={isSubmitting}
+              hasAnalysis={Boolean(analysis)}
               onOriginChange={(value) => handleStopChange(setOrigin, value)}
               onOriginSelect={(suggestion) => handleStopSelect(setOrigin, suggestion)}
               onDestinationChange={(value) => handleStopChange(setDestination, value)}
@@ -283,6 +459,7 @@ export default function Home() {
                 );
               }}
               onDepartureTimeChange={setDepartureTimeLocal}
+              onReset={handleReset}
               onSubmit={handleAnalyze}
             />
 
@@ -293,19 +470,25 @@ export default function Home() {
             />
           </section>
 
-          <SummaryPanel analysis={analysis} />
+          <div className="min-w-0">
+            <SummaryPanel analysis={analysis} />
+          </div>
         </main>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <SegmentTable
-            samples={analysis?.samples ?? []}
-            activeSampleId={activeSampleId}
-            onSelectSample={setActiveSampleId}
-          />
-          <RiskTimeline
-            samples={analysis?.samples ?? []}
-            activeSampleId={activeSampleId}
-          />
+        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+          <div className="min-w-0">
+            <SegmentTable
+              samples={analysis?.samples ?? []}
+              activeSampleId={activeSampleId}
+              onSelectSample={setActiveSampleId}
+            />
+          </div>
+          <div className="min-w-0">
+            <RiskTimeline
+              samples={analysis?.samples ?? []}
+              activeSampleId={activeSampleId}
+            />
+          </div>
         </section>
       </div>
     </div>

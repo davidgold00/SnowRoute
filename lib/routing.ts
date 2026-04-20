@@ -1,15 +1,11 @@
 import "server-only";
 
+import { PublicHttpError, createBoundedCache, fetchJsonWithTimeout } from "@/lib/server-security";
 import type { Coordinate, LocationSuggestion } from "@/lib/types";
 
 const ORS_BASE_URL = "https://api.openrouteservice.org";
-const GEOCODE_TTL_MS = 1000 * 60 * 60 * 12;
 const ROUTE_TTL_MS = 1000 * 60 * 10;
-
-type CacheEntry<T> = {
-  expiresAt: number;
-  value: T;
-};
+const UPSTREAM_TIMEOUT_MS = 8000;
 
 type GeocodeFeature = {
   geometry?: {
@@ -46,42 +42,11 @@ type DirectionsResponse = {
   };
 };
 
-const geocodeCache = new Map<string, CacheEntry<LocationSuggestion[]>>();
-const routeCache = new Map<
-  string,
-  CacheEntry<{
-    encodedPolyline: string;
-    distanceKm: number;
-    durationMinutes: number;
-  }>
->();
-
-function getCachedValue<T>(cache: Map<string, CacheEntry<T>>, key: string) {
-  const cached = cache.get(key);
-
-  if (!cached) {
-    return null;
-  }
-
-  if (cached.expiresAt < Date.now()) {
-    cache.delete(key);
-    return null;
-  }
-
-  return cached.value;
-}
-
-function setCachedValue<T>(
-  cache: Map<string, CacheEntry<T>>,
-  key: string,
-  ttlMs: number,
-  value: T,
-) {
-  cache.set(key, {
-    expiresAt: Date.now() + ttlMs,
-    value,
-  });
-}
+const routeCache = createBoundedCache<{
+  encodedPolyline: string;
+  distanceKm: number;
+  durationMinutes: number;
+}>(80);
 
 function getOrsApiKey() {
   const apiKey = process.env.ORS_API_KEY;
@@ -91,15 +56,6 @@ function getOrsApiKey() {
   }
 
   return apiKey;
-}
-
-async function parseApiError(response: Response) {
-  try {
-    const payload = (await response.json()) as { error?: { message?: string } };
-    return payload.error?.message ?? response.statusText;
-  } catch {
-    return response.statusText;
-  }
 }
 
 function createSuggestionLabel(feature: GeocodeFeature) {
@@ -126,29 +82,38 @@ export async function geocodeLocation(query: string) {
     return [];
   }
 
-  const cached = getCachedValue(geocodeCache, normalizedQuery);
-
-  if (cached) {
-    return cached;
-  }
-
   const params = new URLSearchParams({
     text: query.trim(),
     size: "5",
     api_key: getOrsApiKey(),
   });
 
-  const response = await fetch(`${ORS_BASE_URL}/geocode/search?${params}`, {
-    headers: {
-      Accept: "application/json",
+  const response = await fetchJsonWithTimeout<GeocodeResponse>(
+    `${ORS_BASE_URL}/geocode/search?${params}`,
+    {
+      timeoutMs: UPSTREAM_TIMEOUT_MS,
+      publicErrorMessage: "The geocoding provider took too long to respond.",
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
     },
-    next: {
-      revalidate: 60 * 60 * 12,
-    },
-  });
+  );
 
   if (!response.ok) {
-    throw new Error(`Geocoding request failed: ${await parseApiError(response)}`);
+    if (response.status === 429) {
+      throw new PublicHttpError(
+        503,
+        "Place search is temporarily busy. Please try again shortly.",
+        "GEOCODE_RATE_LIMITED",
+      );
+    }
+
+    throw new PublicHttpError(
+      502,
+      "Place search is temporarily unavailable.",
+      "GEOCODE_UPSTREAM_FAILED",
+    );
   }
 
   const payload = (await response.json()) as GeocodeResponse;
@@ -178,8 +143,6 @@ export async function geocodeLocation(query: string) {
     })
     .filter((suggestion): suggestion is LocationSuggestion => suggestion !== null);
 
-  setCachedValue(geocodeCache, normalizedQuery, GEOCODE_TTL_MS, suggestions);
-
   return suggestions;
 }
 
@@ -189,28 +152,45 @@ export async function getRouteDirections(stops: Coordinate[]) {
   }
 
   const cacheKey = JSON.stringify(stops);
-  const cached = getCachedValue(routeCache, cacheKey);
+  const cached = routeCache.get(cacheKey);
 
   if (cached) {
     return cached;
   }
 
-  const response = await fetch(`${ORS_BASE_URL}/v2/directions/driving-car/json`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: getOrsApiKey(),
-      "Content-Type": "application/json",
+  const response = await fetchJsonWithTimeout<DirectionsResponse>(
+    `${ORS_BASE_URL}/v2/directions/driving-car/json`,
+    {
+      method: "POST",
+      timeoutMs: UPSTREAM_TIMEOUT_MS,
+      publicErrorMessage: "The routing provider took too long to respond.",
+      headers: {
+        Accept: "application/json",
+        Authorization: getOrsApiKey(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        coordinates: stops.map((stop) => [stop.lon, stop.lat]),
+        instructions: false,
+        geometry_simplify: false,
+      }),
     },
-    body: JSON.stringify({
-      coordinates: stops.map((stop) => [stop.lon, stop.lat]),
-      instructions: false,
-      geometry_simplify: false,
-    }),
-  });
+  );
 
   if (!response.ok) {
-    throw new Error(`Routing request failed: ${await parseApiError(response)}`);
+    if (response.status === 429) {
+      throw new PublicHttpError(
+        503,
+        "Routing is temporarily busy. Please try again shortly.",
+        "ROUTING_RATE_LIMITED",
+      );
+    }
+
+    throw new PublicHttpError(
+      502,
+      "Route analysis is temporarily unavailable.",
+      "ROUTING_UPSTREAM_FAILED",
+    );
   }
 
   const payload = (await response.json()) as DirectionsResponse;
@@ -229,7 +209,7 @@ export async function getRouteDirections(stops: Coordinate[]) {
     durationMinutes: durationSeconds / 60,
   };
 
-  setCachedValue(routeCache, cacheKey, ROUTE_TTL_MS, normalizedRoute);
+  routeCache.set(cacheKey, normalizedRoute, ROUTE_TTL_MS);
 
   return normalizedRoute;
 }
