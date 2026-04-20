@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 
+import { SiteHeader } from "@/components/site-header";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +18,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-[#08111e] text-slate-100">{children}</body>
+      <body className="min-h-full bg-[#08111e] text-slate-100">
+        <SiteHeader />
+        {children}
+      </body>
     </html>
   );
 }

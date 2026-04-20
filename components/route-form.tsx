@@ -70,7 +70,7 @@ export function RouteForm({
 
   return (
     <form onSubmit={onSubmit} className="glass-panel space-y-6 rounded-[32px] p-6 lg:p-7">
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+      <div className="space-y-6">
         <div className="space-y-3">
           <p className="eyebrow">Trip builder</p>
           <div className="space-y-3">
@@ -84,7 +84,7 @@ export function RouteForm({
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3 xl:max-w-[470px] xl:flex-1">
+        <div className="grid gap-2 lg:grid-cols-3">
           {plannerSteps.map((step, index) => (
             <div
               key={step}
