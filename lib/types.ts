@@ -126,6 +126,35 @@ export type RouteSummary = {
   guidance: RiskGuidance;
 };
 
+export type DepartureTimeOption = {
+  id: string;
+  hour: number;
+  departureTimeUtc: string;
+  departureTimeDisplay: string;
+  hourLabel: string;
+  safetyScore: number;
+  overallScore: number;
+  averageScore: number;
+  maxScore: number;
+  label: RiskLabel;
+  recommendation: Recommendation;
+  hazardWindowCount: number;
+  severeWindowCount: number;
+  forecastCoverageRatio: number;
+  dataQuality: DataQuality;
+  isSelectedHour: boolean;
+  guidance: RiskGuidance;
+};
+
+export type DepartureOptimization = {
+  travelDateDisplay: string;
+  summary: string;
+  isEquallySafe: boolean;
+  bestOptionIds: string[];
+  bestDepartureTimeDisplays: string[];
+  options: DepartureTimeOption[];
+};
+
 export type RouteAnalysisResponse = {
   route: {
     coordinates: Coordinate[];
@@ -136,4 +165,5 @@ export type RouteAnalysisResponse = {
   samples: RouteSample[];
   hazardWindows: HazardWindow[];
   summary: RouteSummary;
+  departureOptimization: DepartureOptimization;
 };

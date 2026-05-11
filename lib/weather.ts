@@ -337,7 +337,10 @@ export async function resolveWeatherForSamples(samples: WeatherSampleInput[]) {
     current > latest ? current : latest,
   );
   const forecastDays = clamp(
-    differenceInCalendarDays(lastEta, firstEta) + 2,
+    Math.max(
+      differenceInCalendarDays(lastEta, new Date()) + 2,
+      differenceInCalendarDays(lastEta, firstEta) + 2,
+    ),
     1,
     16,
   );

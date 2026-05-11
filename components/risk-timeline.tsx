@@ -1,11 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import {
   Area,
   AreaChart,
   CartesianGrid,
   ReferenceLine,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -63,6 +64,62 @@ export function RiskTimeline({
   samples: RouteSample[];
   activeSampleId: string | null;
 }) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const chartContainer = chartContainerRef.current;
+
+    if (!chartContainer) {
+      return;
+    }
+
+    const updateChartSize = () => {
+      setChartSize({
+        width: chartContainer.clientWidth,
+        height: chartContainer.clientHeight,
+      });
+    };
+
+    updateChartSize();
+    const resizeObserver = new ResizeObserver(updateChartSize);
+    resizeObserver.observe(chartContainer);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [samples.length]);
+
+  if (samples.length === 0) {
+    return (
+      <section className="glass-panel rounded-2xl p-6">
+        <div className="flex min-h-[360px] flex-col justify-between gap-8">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
+              Risk Timeline
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              Timeline ready after analysis
+            </h2>
+            <p className="mt-3 max-w-md text-sm leading-6 text-slate-300">
+              Analyze a route to see the ETA-synced risk curve across the drive.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {["Low", "Moderate", "High"].map((label) => (
+              <div
+                key={label}
+                className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-4 text-sm font-semibold text-slate-300"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const chartData: ChartPoint[] = samples.map((sample) => ({
     id: sample.id,
     distanceKm: sample.distanceKm,
@@ -95,9 +152,11 @@ export function RiskTimeline({
         ) : null}
       </div>
 
-      <div className="mt-6 h-[360px]">
-        <ResponsiveContainer width="100%" height="100%">
+      <div ref={chartContainerRef} className="mt-6 h-[360px]">
+        {chartSize.width > 0 && chartSize.height > 0 ? (
           <AreaChart
+            width={chartSize.width}
+            height={chartSize.height}
             data={chartData}
             margin={{ top: 12, right: 12, left: -20, bottom: 0 }}
           >
@@ -134,7 +193,7 @@ export function RiskTimeline({
               activeDot={{ r: 6, strokeWidth: 0, fill: "#f8fafc" }}
             />
           </AreaChart>
-        </ResponsiveContainer>
+        ) : null}
       </div>
     </section>
   );

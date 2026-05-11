@@ -58,6 +58,7 @@ The app is organized by responsibility so the domain logic stays portable and te
 - `lib/sampling.ts`: route interpolation, cumulative distances, and ETA sampling
 - `lib/weather.ts`: Open-Meteo normalization, timezone-aware matching, caching, and concurrency control
 - `lib/risk.ts`: explainable winter risk scoring, hazard-window grouping, and trip recommendations
+- `lib/departure-optimization.ts`: safest-departure ranking and tie descriptions
 - `lib/analysis.ts`: orchestration layer that turns a route request into one normalized analysis payload
 
 ## API Choices
@@ -161,6 +162,22 @@ This is the product's core differentiator:
 6. The nearest hourly forecast within a 2-hour tolerance is matched to the route checkpoint.
 
 If snowfall or visibility are missing, the app continues and surfaces data-quality notes instead of failing the whole analysis.
+
+## Departure Optimization
+
+After the selected route is analyzed, SnowRoute also checks every hourly departure from `12 AM` through `11 PM` on the chosen travel day. Each hour reuses the same route geometry and duration, shifts the checkpoint ETAs, matches weather for those shifted checkpoint times, and produces a comparable route-level safety score.
+
+The optimizer ranks candidate departure hours by:
+
+- lowest overall trip risk score
+- lowest worst-checkpoint score
+- fewest High or Severe hazard windows
+- most complete forecast coverage
+- lowest average checkpoint score
+
+If multiple hours are effectively tied, the UI says so instead of pretending there is false precision. If every checked hour has the same risk profile, SnowRoute describes the day as equally safe for that route. Hours with incomplete forecast coverage remain visible in the chart, but if fully matched forecast windows exist, incomplete windows are not promoted as the safest option.
+
+The chart in `components/departure-time-optimizer.tsx` visualizes safety as `100 - overallScore`, so taller/greener bars mean safer departure windows and lower/orange-red bars mean riskier windows.
 
 ## Testing
 

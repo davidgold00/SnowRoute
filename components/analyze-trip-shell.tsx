@@ -9,6 +9,33 @@ import { SegmentTable } from "@/components/segment-table";
 import { SummaryPanel } from "@/components/summary-panel";
 import type { LocationSuggestion, RouteAnalysisResponse } from "@/lib/types";
 
+const DepartureTimeOptimizer = dynamic(
+  () =>
+    import("@/components/departure-time-optimizer").then(
+      (module) => module.DepartureTimeOptimizer,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-panel rounded-2xl p-6">
+        <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
+          <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-100">
+            Departure optimizer
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold tracking-tight text-white">
+              Comparing safe departure windows
+            </h2>
+            <p className="max-w-md text-sm leading-6 text-slate-300">
+              Ranking every hour on the selected travel day.
+            </p>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+);
+
 const RouteMap = dynamic(() => import("@/components/route-map"), {
   ssr: false,
   loading: () => (
@@ -384,6 +411,10 @@ export function AnalyzeTripShell() {
               onDepartureTimeChange={setDepartureTimeLocal}
               onSubmit={handleAnalyze}
             />
+
+            {analysis ? (
+              <DepartureTimeOptimizer optimization={analysis.departureOptimization} />
+            ) : null}
 
             <RouteMap
               analysis={analysis}
