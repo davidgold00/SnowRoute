@@ -10,11 +10,15 @@ const searchCache = new Map<string, LocationSuggestion[]>();
 export function useGeocodeSearch(query: string, enabled = true) {
   const normalizedQuery = query.trim();
   const debouncedQuery = useDebouncedValue(normalizedQuery, 300);
-  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [searchResult, setSearchResult] = useState<{
+    cacheKey: string;
+    suggestions: LocationSuggestion[];
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isActiveQuery = enabled && debouncedQuery.length >= 2;
   const cacheKey = debouncedQuery.toLowerCase();
+  const isSettledQuery = normalizedQuery.toLowerCase() === cacheKey;
+  const isActiveQuery = enabled && isSettledQuery && debouncedQuery.length >= 2;
   const cachedSuggestions = isActiveQuery ? searchCache.get(cacheKey) ?? null : null;
 
   useEffect(() => {
@@ -46,13 +50,19 @@ export function useGeocodeSearch(query: string, enabled = true) {
 
         const payload = (await response.json()) as LocationSuggestion[];
         searchCache.set(cacheKey, payload);
-        setSuggestions(payload);
+        setSearchResult({
+          cacheKey,
+          suggestions: payload,
+        });
       } catch (fetchError) {
         if (abortController.signal.aborted) {
           return;
         }
 
-        setSuggestions([]);
+        setSearchResult({
+          cacheKey,
+          suggestions: [],
+        });
         setError(
           fetchError instanceof Error
             ? fetchError.message
@@ -72,8 +82,12 @@ export function useGeocodeSearch(query: string, enabled = true) {
     };
   }, [cacheKey, cachedSuggestions, debouncedQuery, isActiveQuery]);
 
+  const activeSuggestions =
+    cachedSuggestions ??
+    (searchResult?.cacheKey === cacheKey ? searchResult.suggestions : []);
+
   return {
-    suggestions: isActiveQuery ? cachedSuggestions ?? suggestions : [],
+    suggestions: isActiveQuery ? activeSuggestions : [],
     isLoading: isActiveQuery && !cachedSuggestions ? isLoading : false,
     error: isActiveQuery && !cachedSuggestions ? error : null,
   };

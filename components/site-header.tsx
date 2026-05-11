@@ -57,15 +57,15 @@ export function SiteHeader() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/8 bg-slate-950/70 px-4 py-4 backdrop-blur-md sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6">
+    <header className="sticky top-0 z-50 border-b border-white/8 bg-[#071012]/78 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <Link
             href="/"
             className="group flex items-center gap-3 transition-opacity hover:opacity-85"
             aria-label="SnowRoute Home"
           >
-            <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/8 p-2">
+            <div className="rounded-xl border border-cyan-200/18 bg-cyan-300/8 p-2">
               <div className="group-hover:rotate-12">
                 <SnowRouteIcon />
               </div>
@@ -82,9 +82,9 @@ export function SiteHeader() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-full px-4 py-2 text-sm transition ${
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
                   isActive
-                    ? "bg-white/10 text-white"
+                    ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
                     : "text-slate-300 hover:bg-white/6 hover:text-white"
                 }`}
                 aria-current={isActive ? "page" : undefined}

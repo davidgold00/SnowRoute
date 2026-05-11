@@ -57,12 +57,12 @@ export default function RouteMap({
 }) {
   if (!analysis) {
     return (
-      <div className="map-shell flex min-h-[520px] items-center justify-center rounded-[30px] border border-white/10 bg-[#0b1322]/80 p-10 text-center">
+      <div className="map-shell flex min-h-[520px] items-center justify-center rounded-2xl border border-white/10 bg-[#0b1322]/80 p-10 text-center">
         <div className="max-w-md space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/70">
             Route Map
           </p>
-          <h2 className="display-type text-3xl text-white">
+          <h2 className="text-2xl font-semibold tracking-tight text-white">
             Weather-aware route risk, once you hit analyze
           </h2>
           <p className="text-sm leading-6 text-slate-300">
@@ -80,7 +80,7 @@ export default function RouteMap({
   ]) as [number, number][];
 
   return (
-    <div className="map-shell overflow-hidden rounded-[30px] border border-white/10">
+    <div className="map-shell overflow-hidden rounded-2xl border border-white/10">
       <MapContainer
         center={routePath[0]}
         zoom={8}

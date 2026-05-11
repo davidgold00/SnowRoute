@@ -48,12 +48,14 @@ export function SummaryPanel({
 }) {
   if (!analysis) {
     return (
-      <aside className="glass-panel flex min-h-[420px] flex-col justify-between rounded-[28px] p-6 lg:p-7">
+      <aside className="glass-panel flex min-h-[420px] flex-col justify-between rounded-2xl p-6 lg:p-7">
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
             Trip Summary
           </p>
-          <h2 className="display-type text-3xl text-white">Ready when the route is</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-white">
+            Ready when the route is
+          </h2>
           <p className="max-w-md text-sm leading-6 text-slate-300">
             Once you analyze a drive, SnowRoute will highlight the worst segment, the
             hazard windows worth watching, and the clearest travel recommendation.
@@ -68,7 +70,7 @@ export function SummaryPanel({
           ].map((item) => (
             <div
               key={item}
-              className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-4 text-sm text-slate-300"
+              className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-4 text-sm text-slate-300"
             >
               {item}
             </div>
@@ -84,14 +86,14 @@ export function SummaryPanel({
   const qualityNotes = buildQualityNotes(analysis);
 
   return (
-    <aside className="glass-panel rounded-[28px] p-6 lg:p-7">
+    <aside className="glass-panel rounded-2xl p-6 lg:p-7">
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
           Trip Summary
         </p>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="display-type text-4xl leading-none text-white">
+            <h2 className="text-4xl font-semibold leading-none tracking-tight text-white">
               {analysis.summary.overallScore}
             </h2>
             <p className="mt-2 text-sm text-slate-400">
@@ -106,25 +108,25 @@ export function SummaryPanel({
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Distance</p>
           <p className="mt-2 text-2xl font-semibold text-white">
             {analysis.route.distanceKm.toFixed(0)} km
           </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Duration</p>
           <p className="mt-2 text-2xl font-semibold text-white">
             {formatDuration(analysis.route.durationMinutes)}
           </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Average sample</p>
           <p className="mt-2 text-2xl font-semibold text-white">
             {analysis.summary.averageScore}
           </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Worst segment</p>
           <div className="mt-2 flex items-center gap-3">
             <p className="text-2xl font-semibold text-white">{analysis.summary.maxScore}</p>
@@ -133,7 +135,7 @@ export function SummaryPanel({
         </div>
       </div>
 
-      <div className="mt-6 rounded-3xl border border-white/10 bg-[linear-gradient(160deg,rgba(154,211,255,0.14),rgba(255,255,255,0.03))] p-5">
+      <div className="mt-6 rounded-xl border border-white/10 bg-[linear-gradient(160deg,rgba(139,232,199,0.14),rgba(255,255,255,0.03))] p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/80">
           Recommendation
         </p>
@@ -163,7 +165,7 @@ export function SummaryPanel({
             {analysis.hazardWindows.map((window) => (
               <div
                 key={window.id}
-                className="rounded-2xl border border-white/10 bg-white/[0.025] p-4"
+                className="rounded-xl border border-white/10 bg-white/[0.025] p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -183,7 +185,7 @@ export function SummaryPanel({
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm text-slate-300">
+          <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4 text-sm text-slate-300">
             No sustained high-risk windows were detected across the analyzed route.
           </div>
         )}
@@ -195,7 +197,7 @@ export function SummaryPanel({
           {qualityNotes.map((note) => (
             <div
               key={note}
-              className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-slate-300"
+              className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-slate-300"
             >
               {note}
             </div>

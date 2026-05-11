@@ -19,20 +19,22 @@ export function SegmentTable({
   onSelectSample: (sampleId: string) => void;
 }) {
   return (
-    <section className="glass-panel rounded-[28px] p-6">
+    <section className="glass-panel rounded-2xl p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
             Segment Table
           </p>
-          <h2 className="display-type mt-2 text-3xl text-white">Checkpoint-by-checkpoint risk</h2>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+            Checkpoint-by-checkpoint risk
+          </h2>
         </div>
         <p className="max-w-md text-sm leading-6 text-slate-300">
           Click any row to highlight that checkpoint on the map and timeline.
         </p>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-3xl border border-white/10">
+      <div className="mt-6 overflow-hidden rounded-xl border border-white/10">
         <div className="max-h-[520px] overflow-auto">
           <table className="min-w-full divide-y divide-white/8 text-left">
             <thead className="sticky top-0 bg-[#0e1728]/95 backdrop-blur">

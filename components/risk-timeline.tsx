@@ -38,7 +38,7 @@ function TimelineTooltip({
   const point = payload[0].payload;
 
   return (
-    <div className="max-w-xs rounded-2xl border border-white/12 bg-[#0f1a2e]/95 p-4 shadow-[0_18px_60px_rgba(4,10,21,0.5)]">
+    <div className="max-w-xs rounded-xl border border-white/12 bg-[#0f1a2e]/95 p-4 shadow-[0_18px_60px_rgba(4,10,21,0.5)]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-white">{point.etaDisplay}</p>
         <RiskPill label={point.label} />
@@ -71,16 +71,18 @@ export function RiskTimeline({
   const activeSample = samples.find((sample) => sample.id === activeSampleId) ?? samples[0];
 
   return (
-    <section className="glass-panel rounded-[28px] p-6">
+    <section className="glass-panel rounded-2xl p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
             Risk Timeline
           </p>
-          <h2 className="display-type mt-2 text-3xl text-white">How risk changes along the drive</h2>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+            How risk changes along the drive
+          </h2>
         </div>
         {activeSample ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-slate-300">
+          <div className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-slate-300">
             <span className="font-semibold text-white">{activeSample.etaDisplay}</span>
             <span className="mx-2 text-slate-500">•</span>
             {activeSample.weather.summary}

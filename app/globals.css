@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #07111b;
+  --background: #071112;
   --foreground: #eef4ff;
-  --surface: rgba(8, 18, 31, 0.84);
-  --surface-strong: rgba(7, 14, 25, 0.94);
+  --surface: rgba(9, 20, 25, 0.88);
+  --surface-strong: rgba(7, 13, 18, 0.94);
   --surface-soft: rgba(255, 255, 255, 0.05);
-  --border-soft: rgba(161, 196, 255, 0.12);
-  --border-strong: rgba(151, 216, 255, 0.2);
-  --accent: #89d8ff;
+  --border-soft: rgba(181, 226, 233, 0.13);
+  --border-strong: rgba(151, 236, 224, 0.24);
+  --accent: #8be8c7;
   --font-body: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia,
     serif;
@@ -44,9 +44,9 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(circle at 18% 0%, rgba(176, 226, 255, 0.15), transparent 26%),
-    radial-gradient(circle at 88% 8%, rgba(156, 233, 255, 0.08), transparent 24%),
-    linear-gradient(180deg, #112236 0%, #0b1523 44%, #060b13 100%);
+    linear-gradient(135deg, rgba(31, 74, 68, 0.48) 0%, rgba(9, 17, 18, 0) 42%),
+    linear-gradient(215deg, rgba(23, 48, 67, 0.56) 0%, rgba(7, 13, 18, 0) 46%),
+    linear-gradient(180deg, #0d1a1c 0%, #0a1117 48%, #05080d 100%);
   content: "";
 }
 
@@ -54,8 +54,13 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 24%);
-  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(214, 244, 245, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(214, 244, 245, 0.03) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%);
+  background-size: 72px 72px, 72px 72px, 100% 100%;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.68), transparent 78%);
+  opacity: 0.62;
   pointer-events: none;
   content: "";
 }
@@ -67,7 +72,7 @@ body::after {
 
 .display-type {
   font-family: var(--font-display);
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
@@ -82,15 +87,15 @@ body::after {
 .glass-panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(218, 244, 246, 0.11);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018) 24%),
-    linear-gradient(145deg, rgba(137, 216, 255, 0.05), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018) 30%),
+    linear-gradient(145deg, rgba(139, 232, 199, 0.055), transparent 44%),
     var(--surface);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px);
+    0 24px 70px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.065);
+  backdrop-filter: blur(20px);
 }
 
 .glass-panel::before {
@@ -98,8 +103,8 @@ body::after {
   inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(circle at top right, rgba(137, 216, 255, 0.08), transparent 30%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 35%);
+    linear-gradient(90deg, rgba(139, 232, 199, 0.08), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.024), transparent 38%);
   pointer-events: none;
   content: "";
 }
@@ -131,11 +136,9 @@ body::after {
 
 .metric-card::before {
   position: absolute;
-  inset: auto -12% -60% auto;
-  height: 9rem;
-  width: 9rem;
-  border-radius: 9999px;
-  background: radial-gradient(circle, rgba(137, 216, 255, 0.12), transparent 70%);
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(139, 232, 199, 0.72), rgba(137, 216, 255, 0.12));
   pointer-events: none;
   content: "";
 }
@@ -166,8 +169,8 @@ body::after {
   inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(circle at top left, rgba(137, 216, 255, 0.12), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 20%);
+    linear-gradient(90deg, rgba(137, 216, 255, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 24%);
   pointer-events: none;
   content: "";
 }
@@ -201,6 +204,41 @@ body::after {
 .site-shell {
   position: relative;
   z-index: 1;
+}
+
+.route-builder-panel {
+  overflow: visible;
+}
+
+.route-builder-panel > .route-builder-header {
+  z-index: 20;
+}
+
+.route-builder-panel > .route-builder-locations {
+  position: relative;
+  z-index: 70;
+}
+
+.route-builder-panel > .route-builder-waypoints {
+  position: relative;
+  z-index: 50;
+}
+
+.route-builder-panel > .route-builder-actions {
+  position: relative;
+  z-index: 20;
+}
+
+.location-input {
+  z-index: 1;
+}
+
+.location-input--open {
+  z-index: 100;
+}
+
+.location-suggestions {
+  scrollbar-gutter: stable;
 }
 
 .snowfall {

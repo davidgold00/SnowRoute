@@ -12,13 +12,15 @@ import type { LocationSuggestion, RouteAnalysisResponse } from "@/lib/types";
 const RouteMap = dynamic(() => import("@/components/route-map"), {
   ssr: false,
   loading: () => (
-    <div className="map-shell rounded-[32px] border border-white/10 p-10">
+    <div className="map-shell rounded-2xl border border-white/10 p-10">
       <div className="flex min-h-[540px] flex-col items-center justify-center gap-4 text-center">
-        <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-100">
+        <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-100">
           Route canvas
         </div>
         <div className="space-y-2">
-          <h2 className="display-type text-3xl text-white">Loading weather-aware map layers</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-white">
+            Loading weather-aware map layers
+          </h2>
           <p className="max-w-md text-sm leading-6 text-slate-300">
             Building the map surface, segment colors, and interactive checkpoints.
           </p>
@@ -33,13 +35,15 @@ const RiskTimeline = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="glass-panel rounded-[32px] p-6">
+      <div className="glass-panel rounded-2xl p-6">
         <div className="flex min-h-[460px] flex-col items-center justify-center gap-4 text-center">
-          <div className="rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-200">
+          <div className="rounded-lg border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-200">
             Risk timeline
           </div>
           <div className="space-y-2">
-            <h2 className="display-type text-3xl text-white">Loading score progression</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-white">
+              Loading score progression
+            </h2>
             <p className="max-w-md text-sm leading-6 text-slate-300">
               Preparing the ETA-synced risk curve across the drive.
             </p>
@@ -247,21 +251,40 @@ export function AnalyzeTripShell() {
   return (
     <div className="min-h-screen pb-16 pt-4">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="glass-panel rounded-[36px] px-6 py-6 lg:px-8">
-          <div className="max-w-3xl space-y-3">
-            <p className="eyebrow">Analyze a trip</p>
-            <h1 className="display-type text-4xl leading-[0.95] text-white sm:text-5xl">
-              Check the route before you go.
-            </h1>
-            <p className="text-sm leading-7 text-slate-300 sm:text-base">
-              Enter a route, pick a departure time, and review the most important winter risk
-              areas.
-            </p>
+        <header className="glass-panel rounded-2xl px-5 py-5 sm:px-6 lg:px-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl space-y-3">
+              <p className="eyebrow">Analyze a trip</p>
+              <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                Check the route before you go.
+              </h1>
+              <p className="max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+                Enter the stops, lock the route with search suggestions, then review the
+                winter risk profile by checkpoint.
+              </p>
+            </div>
+            <div className="grid min-w-full grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] text-center sm:min-w-[420px]">
+              {[
+                { label: "Route", value: analysis ? "Analyzed" : "Draft" },
+                { label: "Map", value: analysis ? "Live" : "Standby" },
+                { label: "Focus", value: activeSampleId ? "Pinned" : "Auto" },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="border-l border-white/8 px-3 py-3 first:border-l-0"
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-100">{item.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </header>
 
         {analysisError ? (
-          <div className="mt-6 rounded-[30px] border border-rose-300/20 bg-[linear-gradient(135deg,rgba(251,113,133,0.14),rgba(255,255,255,0.03))] px-5 py-4 text-sm text-rose-50 shadow-[0_18px_48px_rgba(37,9,15,0.24)]">
+          <div className="mt-6 rounded-2xl border border-rose-300/20 bg-[linear-gradient(135deg,rgba(251,113,133,0.14),rgba(255,255,255,0.03))] px-5 py-4 text-sm text-rose-50 shadow-[0_18px_48px_rgba(37,9,15,0.24)]">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="eyebrow text-rose-100/80">Analysis issue</p>
@@ -277,12 +300,12 @@ export function AnalyzeTripShell() {
         ) : null}
 
         {analysis ? (
-          <section className="glass-panel mt-6 rounded-[32px] p-5 lg:p-6">
+          <section className="glass-panel mt-6 rounded-2xl p-5 lg:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-2">
                 <p className="eyebrow">Latest analysis</p>
                 <div>
-                  <h2 className="display-type text-3xl text-white sm:text-4xl">
+                  <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                     {latestRouteName}
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
@@ -298,7 +321,7 @@ export function AnalyzeTripShell() {
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {analysisSnapshot.map((item) => (
-                <div key={item.label} className="metric-card rounded-[24px] p-4">
+                <div key={item.label} className="metric-card rounded-xl p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                     {item.label}
                   </p>
