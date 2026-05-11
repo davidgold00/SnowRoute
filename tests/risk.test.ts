@@ -8,6 +8,7 @@ import {
 } from "../lib/risk";
 import type {
   NormalizedWeatherSnapshot,
+  RiskGuidance,
   RouteSample,
   RouteSegment,
 } from "../lib/types";
@@ -30,6 +31,14 @@ function createWeather(
     matchDistanceMinutes: 0,
     source: "exact",
     ...overrides,
+  };
+}
+
+function createGuidance(score: number): RiskGuidance {
+  return {
+    headline: `Synthetic risk ${score}`,
+    impact: "Synthetic impact for tests.",
+    gamePlan: "Synthetic plan for tests.",
   };
 }
 
@@ -56,6 +65,7 @@ function createSample(
     explanationFactors:
       overrides.explanationFactors ?? factors.slice(0, 3).map((factor) => factor.label),
     factors,
+    guidance: overrides.guidance ?? createGuidance(score),
   };
 }
 
@@ -93,10 +103,12 @@ describe("risk scoring", () => {
       }),
     });
 
-    expect(risk.score).toBeGreaterThanOrEqual(25);
+    expect(risk.score).toBeGreaterThanOrEqual(75);
+    expect(risk.label).toBe("Severe");
     expect(risk.explanationFactors).toContain(
-      "Temperature near freezing increases ice risk",
+      "Freezing precipitation creates a high-loss-of-control risk",
     );
+    expect(risk.guidance.gamePlan).toContain("Avoid travel");
   });
 
   it("adds visibility and wind penalties on top of baseline winter factors", () => {
@@ -110,7 +122,8 @@ describe("risk scoring", () => {
       }),
     });
 
-    expect(risk.score).toBeGreaterThanOrEqual(20);
+    expect(risk.score).toBeGreaterThanOrEqual(50);
+    expect(risk.label).toBe("High");
     expect(risk.explanationFactors).toContain("Low visibility conditions");
     expect(
       risk.explanationFactors.some((factor) => factor.includes("wind")),
@@ -147,7 +160,27 @@ describe("risk scoring", () => {
     });
 
     expect(risk.score).toBeGreaterThan(0);
-    expect(risk.explanationFactors[0]).toBe("Convective storm activity");
+    expect(risk.explanationFactors[0]).toBe("Thunderstorm with hail can make travel erratic");
+    expect(risk.guidance.impact).toContain("winter factors");
+  });
+
+  it("treats snow, wind, and near-whiteout visibility as severe", () => {
+    const risk = scoreRouteSampleRisk({
+      etaUtc: "2026-01-05T23:00:00.000Z",
+      pointTimeZone: "UTC",
+      weather: createWeather({
+        snowfallCm: 1.2,
+        visibilityKm: 0.3,
+        windGustKph: 62,
+        weatherCode: 73,
+      }),
+    });
+
+    expect(risk.score).toBeGreaterThanOrEqual(90);
+    expect(risk.label).toBe("Severe");
+    expect(risk.explanationFactors).toContain(
+      "Snow, wind, and poor visibility can create whiteout travel",
+    );
   });
 });
 

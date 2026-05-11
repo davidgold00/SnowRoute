@@ -22,6 +22,7 @@ type ChartPoint = {
   label: RouteSample["label"];
   weatherSummary: string;
   explanation: string;
+  gamePlan: string;
 };
 
 function TimelineTooltip({
@@ -45,6 +46,9 @@ function TimelineTooltip({
       </div>
       <p className="mt-3 text-sm text-slate-200">{point.weatherSummary}</p>
       <p className="mt-2 text-xs leading-5 text-slate-400">{point.explanation}</p>
+      {point.label !== "Low" ? (
+        <p className="mt-2 text-xs leading-5 text-slate-300">{point.gamePlan}</p>
+      ) : null}
       <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-500">
         {point.distanceKm.toFixed(0)} km • score {point.score}
       </p>
@@ -67,6 +71,7 @@ export function RiskTimeline({
     label: sample.label,
     weatherSummary: sample.weather.summary,
     explanation: sample.explanationFactors.join(" • ") || "No dominant hazard signal",
+    gamePlan: sample.guidance.gamePlan,
   }));
   const activeSample = samples.find((sample) => sample.id === activeSampleId) ?? samples[0];
 

@@ -53,6 +53,7 @@ export async function analyzeRoute(input: AnalyzeRouteInput): Promise<RouteAnaly
       label: risk.label,
       explanationFactors: risk.explanationFactors,
       factors: risk.factors,
+      guidance: risk.guidance,
     };
   });
 

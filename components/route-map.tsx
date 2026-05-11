@@ -135,6 +135,14 @@ export default function RouteMap({
                   <p className="text-xs text-slate-500">
                     {sample.explanationFactors.join(" • ") || "No major hazard signal detected"}
                   </p>
+                  {sample.label !== "Low" ? (
+                    <>
+                      <p className="text-xs font-semibold text-slate-800">
+                        {sample.guidance.impact}
+                      </p>
+                      <p className="text-xs text-slate-600">{sample.guidance.gamePlan}</p>
+                    </>
+                  ) : null}
                 </div>
               </Popup>
             </CircleMarker>

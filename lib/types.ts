@@ -40,6 +40,12 @@ export type Recommendation =
   | "Delay recommended"
   | "Avoid travel";
 
+export type RiskGuidance = {
+  headline: string;
+  impact: string;
+  gamePlan: string;
+};
+
 export type RiskFactor = {
   key: string;
   label: string;
@@ -76,6 +82,7 @@ export type RouteSample = {
   label: RiskLabel;
   explanationFactors: string[];
   factors: RiskFactor[];
+  guidance: RiskGuidance;
 };
 
 export type HazardWindow = {
@@ -87,6 +94,7 @@ export type HazardWindow = {
   maxScore: number;
   label: Extract<RiskLabel, "High" | "Severe">;
   dominantFactors: string[];
+  guidance: RiskGuidance;
   sampleIds: string[];
 };
 
@@ -115,6 +123,7 @@ export type RouteSummary = {
   averageScore: number;
   maxScore: number;
   dataQuality: DataQuality;
+  guidance: RiskGuidance;
 };
 
 export type RouteAnalysisResponse = {

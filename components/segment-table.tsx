@@ -77,6 +77,16 @@ export function SegmentTable({
                       <div className="mt-1 text-xs text-slate-400">
                         {sample.explanationFactors[0] ?? "No major hazard signal detected"}
                       </div>
+                      {sample.label !== "Low" ? (
+                        <div className="mt-3 max-w-md rounded-lg border border-white/10 bg-white/[0.025] p-3">
+                          <p className="text-xs font-semibold text-slate-200">
+                            {sample.guidance.headline}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-400">
+                            {sample.guidance.gamePlan}
+                          </p>
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-4 align-top text-sm text-slate-200">
                       {formatValue(sample.weather.visibilityKm, " km", 1)}

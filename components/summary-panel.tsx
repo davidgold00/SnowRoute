@@ -140,16 +140,21 @@ export function SummaryPanel({
           Recommendation
         </p>
         <p className="mt-3 text-lg font-semibold text-white">
-          {analysis.summary.recommendation}
+          {analysis.summary.guidance.headline}
         </p>
         <p className="mt-2 text-sm leading-6 text-slate-200">
-          {analysis.summary.recommendation === "Safe"
-            ? "Forecast conditions stay mostly manageable along the route with no sustained high-risk windows."
-            : analysis.summary.recommendation === "Use caution"
-              ? "Some portions of the drive show meaningful winter hazards, but severe windows are not dominant."
-              : analysis.summary.recommendation === "Delay recommended"
-                ? "SnowRoute found high-risk or brief severe conditions that make a schedule shift worth considering."
-                : "Severe hazards persist for a meaningful stretch of the trip, making travel avoidance the safer call."}
+          {analysis.summary.guidance.impact}
+        </p>
+        <div className="mt-4 rounded-xl border border-white/10 bg-black/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/70">
+            Optimal gameplan
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-200">
+            {analysis.summary.guidance.gamePlan}
+          </p>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-400">
+          Recommendation: <span className="text-slate-200">{analysis.summary.recommendation}</span>
         </p>
       </div>
 
@@ -181,6 +186,15 @@ export function SummaryPanel({
                 <p className="mt-3 text-sm leading-6 text-slate-300">
                   {window.dominantFactors.join(" • ")}
                 </p>
+                <div className="mt-3 rounded-xl border border-white/10 bg-black/10 p-3">
+                  <p className="text-sm font-semibold text-white">{window.guidance.headline}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {window.guidance.impact}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {window.guidance.gamePlan}
+                  </p>
+                </div>
               </div>
             ))}
           </div>

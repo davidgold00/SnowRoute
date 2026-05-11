@@ -77,15 +77,37 @@ Open-Meteo is the primary weather source because it provides a useful hourly for
 
 ## Risk Model
 
-SnowRoute uses an additive 0-100 score with transparent factors:
+SnowRoute uses an explainable 0-100 winter-driving score for every route checkpoint. The model is intentionally conservative around hazards that can make an ordinary passenger-vehicle trip unsafe quickly: freezing rain, near-whiteout visibility, snow plus wind, severe storm codes, and night driving.
 
-- Snowfall or solid precipitation: up to 30 points
-- Precipitation near freezing as an icing proxy: up to 20 points
-- Subfreezing temperatures: up to 10 points
-- Low visibility: up to 15 points
-- Wind and gusts: up to 15 points
-- Hazardous weather codes such as freezing precipitation, dense fog, heavy snow, and storms: up to 10 points
-- Night driving: 5 points
+The scoring logic lives in `lib/risk.ts`. The response shape for the detailed explanations lives in `lib/types.ts`, and the risk tests live in `tests/risk.test.ts`.
+
+### Per-checkpoint score factors
+
+Each checkpoint starts at 0 and adds transparent risk factors:
+
+- Snowfall or solid precipitation: starts above `0.15 cm`, scales up to `34` points by about `3.5 cm`, and snow forecast codes add a minimum snow signal.
+- Icing / near-freezing precipitation: precipitation or freezing-precipitation codes between `-3C` and `1C` can add up to `32` points.
+- Subfreezing temperatures: below `0C` can add up to `8` points, with deeper cold treated as more likely to preserve slick surfaces.
+- Reduced visibility: below `8 km` adds risk, scaling up to `28` points by `0.4 km`.
+- Wind and gusts: starts at `35 kph`, scales up to `22` points by about `90 kph`.
+- Hazardous weather codes:
+  - freezing drizzle/rain: `24-42` points depending on intensity
+  - heavy snow / snow showers: `18-20` points
+  - thunderstorms / hail: `18-32` points
+  - fog / dense fog: `8-12` points
+- Night driving: before 7 AM or after 7 PM local time adds `6` points.
+
+### Critical score floors
+
+Some combinations are dangerous enough that SnowRoute forces a minimum score even if the additive score would otherwise be lower:
+
+- Freezing drizzle/rain forces at least `60`; dense or heavy freezing precipitation forces at least `75`.
+- Visibility at or below `0.8 km` forces at least `55`.
+- Visibility at or below `0.4 km` forces at least `65`.
+- Snow plus visibility at or below `0.8 km` plus wind at or above `45 kph` forces at least `75`.
+- Snow plus visibility at or below `0.4 km` plus wind at or above `56 kph` forces at least `90`.
+- Snow plus gusts at or above `70 kph` forces at least `70`.
+- Severe thunderstorm with hail forces at least `70`.
 
 Risk labels:
 
@@ -94,12 +116,38 @@ Risk labels:
 - `50-74`: High
 - `75-100`: Severe
 
+### Hazard windows
+
+A hazard window is created when one or more route checkpoints score `50+` (`High` or `Severe`). Nearby high-risk checkpoints are merged across short lower-risk gaps so the UI shows a practical travel window instead of noisy individual alerts.
+
 Trip recommendation rules:
 
 - `Safe`: low overall risk and no sustained High or Severe segments
 - `Use caution`: moderate overall risk or non-severe hazard windows
 - `Delay recommended`: high overall risk or a brief Severe window
 - `Avoid travel`: overall Severe risk or Severe windows covering at least 20% of the route
+
+The trip's overall score is a blend of the route average and the worst checkpoint:
+
+```text
+overallScore = averageScore * 0.6 + maxScore * 0.4
+```
+
+That means one bad pocket matters, but a long route with only a short bad stretch is not treated the same as a route that is dangerous end to end. Severe hazard-window coverage can still escalate the recommendation to `Avoid travel`.
+
+### Guidance shown to users
+
+For every checkpoint, hazard window, and trip summary, SnowRoute now returns structured guidance:
+
+- `headline`: the risk level and dominant causes
+- `impact`: what that means for real driving
+- `gamePlan`: the recommended action
+
+For anything above `Low`, the app explains why it is risky and how to respond. Examples include delaying the trip, stopping before the worst segment, avoiding cruise control, increasing following distance, treating bridges and ramps as icy, avoiding exposed highways in high wind, and waiting until a flagged window passes.
+
+### Calibration note
+
+This is a deterministic forecast-based heuristic, not an official road-closure or emergency-management system. The thresholds are aligned with common winter-driving safety concepts and warning-style triggers such as dense fog / blizzard-level visibility, freezing precipitation, strong wind, snow squalls, and hail. Actual safety still depends on tires, vehicle type, driver experience, road treatment, traffic, terrain, and rapidly changing local conditions.
 
 ## Time-Aware Weather Matching
 
