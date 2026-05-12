@@ -257,24 +257,24 @@ export function DeparturePicker({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
             Departure Time
           </p>
-          <p className="mt-2 text-xl font-semibold tracking-tight text-white">
+          <p className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
             {selectedDateLabel} at {formatClock(minutes)}
           </p>
         </div>
-        <span className="rounded-lg border border-cyan-100/15 bg-cyan-300/8 px-3 py-2 text-xs font-medium text-cyan-50">
+        <span className="max-w-full truncate rounded-lg border border-cyan-100/15 bg-cyan-300/8 px-3 py-2 text-xs font-medium text-cyan-50 sm:shrink-0">
           {timeZone}
         </span>
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
+      <div className="mt-5 grid min-w-0 gap-5">
+        <div className="min-w-0 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,12rem)] sm:items-center sm:justify-between">
             <label
               htmlFor="departure-date"
               className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300"
@@ -296,11 +296,11 @@ export function DeparturePicker({
                 }
               }}
               disabled={disabled}
-              className="h-10 w-36 rounded-lg border border-white/12 bg-black/15 px-3 text-right text-sm font-semibold text-slate-100 outline-none transition placeholder:text-slate-400 focus:border-cyan-200/60 focus:bg-cyan-300/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-10 w-full rounded-lg border border-white/12 bg-black/15 px-3 text-left text-sm font-semibold text-slate-100 outline-none transition placeholder:text-slate-400 focus:border-cyan-200/60 focus:bg-cyan-300/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(7.25rem,1fr))] gap-2">
             {dayOptions.map((option) => {
               const isSelected = option.dateValue === dateValue;
 
@@ -311,7 +311,7 @@ export function DeparturePicker({
                   disabled={disabled}
                   aria-pressed={isSelected}
                   onClick={() => commit(option.dateValue, normalizedMinutes)}
-                  className={`rounded-xl border px-3 py-3 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/55 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`min-h-20 rounded-xl border px-3 py-3 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/55 disabled:cursor-not-allowed disabled:opacity-60 ${
                     isSelected
                       ? "border-cyan-200/55 bg-cyan-300/[0.16] shadow-[0_0_0_4px_rgba(125,211,252,0.08)]"
                       : "border-white/10 bg-white/[0.025] hover:border-cyan-100/25 hover:bg-cyan-300/[0.07]"
@@ -329,7 +329,7 @@ export function DeparturePicker({
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] gap-2">
             <button
               type="button"
@@ -391,7 +391,7 @@ export function DeparturePicker({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2">
             {quickTimes.map((preset) => {
               const isActive = Math.abs(minutes - preset.minutes) < TIME_STEP_MINUTES;
               const isDisabled = disabled || preset.minutes < minimumMinutes;

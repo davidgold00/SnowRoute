@@ -194,7 +194,7 @@ export function RouteForm({
       </div>
 
       <div className="route-builder-actions grid gap-5 border-t border-white/10 pt-6">
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+        <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
           <DeparturePicker
             value={departureTimeLocal}
             timeZone={timeZone}
