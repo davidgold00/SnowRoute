@@ -70,6 +70,24 @@ body::after {
   color: #f8fbff;
 }
 
+::placeholder {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:focus-visible {
+  outline: 2px solid rgba(165, 243, 252, 0.92);
+  outline-offset: 3px;
+}
+
+button,
+input,
+select,
+textarea,
+summary,
+[tabindex] {
+  -webkit-tap-highlight-color: rgba(125, 211, 252, 0.18);
+}
+
 .display-type {
   font-family: var(--font-display);
   letter-spacing: 0;
@@ -187,18 +205,31 @@ body::after {
 
 .map-shell .leaflet-control-zoom a,
 .map-shell .leaflet-control-zoom a:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(8, 18, 31, 0.88);
-  color: #e5f2ff;
+  border-color: rgba(203, 245, 255, 0.28);
+  background: rgba(8, 18, 31, 0.94);
+  color: #f2f8ff;
+  width: 34px;
+  height: 34px;
+  line-height: 34px;
 }
 
 .map-shell .leaflet-control-attribution {
-  background: rgba(8, 18, 31, 0.72);
-  color: rgba(207, 226, 248, 0.8);
+  background: rgba(8, 18, 31, 0.86);
+  color: rgba(226, 239, 255, 0.92);
 }
 
 .map-shell .leaflet-control-attribution a {
   color: #9fdcff;
+}
+
+.map-shell .leaflet-control-scale-line {
+  border-color: rgba(226, 239, 255, 0.82);
+  background: rgba(8, 18, 31, 0.9);
+  color: #f2f8ff;
+}
+
+.map-shell .leaflet-interactive {
+  outline: none;
 }
 
 .site-shell {
@@ -239,6 +270,53 @@ body::after {
 
 .location-suggestions {
   scrollbar-gutter: stable;
+}
+
+.segment-scroll {
+  scrollbar-color: rgba(125, 211, 252, 0.62) rgba(255, 255, 255, 0.06);
+  scrollbar-gutter: stable;
+}
+
+.segment-scroll::-webkit-scrollbar-thumb,
+.location-suggestions::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(8, 18, 31, 0.86);
+  background: rgba(125, 211, 252, 0.62);
+}
+
+.departure-time-range {
+  appearance: none;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(125, 211, 252, 0.92), rgba(139, 232, 199, 0.82)),
+    rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.departure-time-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #08121f;
+  border-radius: 999px;
+  background: #eaffff;
+  box-shadow:
+    0 0 0 2px rgba(165, 243, 252, 0.86),
+    0 10px 22px rgba(0, 0, 0, 0.34);
+}
+
+.departure-time-range::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #08121f;
+  border-radius: 999px;
+  background: #eaffff;
+  box-shadow:
+    0 0 0 2px rgba(165, 243, 252, 0.86),
+    0 10px 22px rgba(0, 0, 0, 0.34);
+}
+
+.departure-time-range:focus-visible {
+  box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.22);
 }
 
 .snowfall {

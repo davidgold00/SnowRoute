@@ -1,12 +1,21 @@
 "use client";
 
+import { fromZonedTime } from "date-fns-tz";
 import dynamic from "next/dynamic";
-import { startTransition, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 
+import { InfoTooltip } from "@/components/info-tooltip";
 import { RecommendationPill, RiskPill } from "@/components/status-pill";
 import { RouteForm, type EditableStop } from "@/components/route-form";
 import { SegmentTable } from "@/components/segment-table";
 import { SummaryPanel } from "@/components/summary-panel";
+import {
+  MAX_WAYPOINTS,
+  canAddWaypoint,
+  getBrowserTimeZone,
+  inferTimeZoneFromLocation,
+  shouldOfferOriginTimeZoneSwitch,
+} from "@/lib/time-zones";
 import type { LocationSuggestion, RouteAnalysisResponse } from "@/lib/types";
 
 const DepartureTimeOptimizer = dynamic(
@@ -81,6 +90,17 @@ const RiskTimeline = dynamic(
   },
 );
 
+const TRIP_DRAFT_STORAGE_KEY = "snowroute.tripDraft.v1";
+
+type TripDraft = {
+  origin: EditableStop;
+  destination: EditableStop;
+  waypoints: EditableStop[];
+  departureTimeLocal: string;
+  timeZone: string;
+  timeZoneManuallySet: boolean;
+};
+
 function createStop(id: string): EditableStop {
   return {
     id,
@@ -91,6 +111,14 @@ function createStop(id: string): EditableStop {
 
 function createWaypoint() {
   return createStop(`waypoint-${Math.random().toString(36).slice(2, 9)}`);
+}
+
+function createWaypointWithDraft(stop: EditableStop, index: number): EditableStop {
+  return {
+    id: stop.id || `waypoint-${index + 1}`,
+    query: stop.query,
+    selected: stop.selected,
+  };
 }
 
 function formatLocalDateTime(date: Date) {
@@ -127,6 +155,51 @@ function getErrorMessage(payload: unknown) {
   return "SnowRoute could not analyze that route.";
 }
 
+function loadTripDraft() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const storedDraft = window.localStorage.getItem(TRIP_DRAFT_STORAGE_KEY);
+
+    if (!storedDraft) {
+      return null;
+    }
+
+    const parsedDraft = JSON.parse(storedDraft) as Partial<TripDraft>;
+
+    return {
+      origin: parsedDraft.origin ?? createStop("origin"),
+      destination: parsedDraft.destination ?? createStop("destination"),
+      waypoints: (parsedDraft.waypoints ?? [])
+        .slice(0, MAX_WAYPOINTS)
+        .map(createWaypointWithDraft),
+      departureTimeLocal: parsedDraft.departureTimeLocal ?? getDefaultDepartureTime(),
+      timeZone: parsedDraft.timeZone ?? getBrowserTimeZone(),
+      timeZoneManuallySet: Boolean(parsedDraft.timeZoneManuallySet),
+    } satisfies TripDraft;
+  } catch {
+    return null;
+  }
+}
+
+function saveTripDraft(draft: TripDraft) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(TRIP_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+}
+
+function clearTripDraft() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(TRIP_DRAFT_STORAGE_KEY);
+}
+
 export function AnalyzeTripShell() {
   const [origin, setOrigin] = useState<EditableStop>(() => createStop("origin"));
   const [destination, setDestination] = useState<EditableStop>(() =>
@@ -136,12 +209,62 @@ export function AnalyzeTripShell() {
   const [departureTimeLocal, setDepartureTimeLocal] = useState(() =>
     getDefaultDepartureTime(),
   );
+  const [timeZone, setTimeZone] = useState("UTC");
+  const [timeZoneManuallySet, setTimeZoneManuallySet] = useState(false);
+  const [originTimeZoneSuggestion, setOriginTimeZoneSuggestion] = useState<string | null>(
+    null,
+  );
   const [analysis, setAnalysis] = useState<RouteAnalysisResponse | null>(null);
+  const [isRouteBuilderExpanded, setIsRouteBuilderExpanded] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
   const analyzeAbortRef = useRef<AbortController | null>(null);
-  const clientTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const summaryRef = useRef<HTMLElement | null>(null);
+  const hasRestoredDraftRef = useRef(false);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const draft = loadTripDraft();
+
+      if (draft) {
+        setOrigin(draft.origin);
+        setDestination(draft.destination);
+        setWaypoints(draft.waypoints);
+        setDepartureTimeLocal(draft.departureTimeLocal);
+        setTimeZone(draft.timeZone);
+        setTimeZoneManuallySet(draft.timeZoneManuallySet);
+      } else {
+        setTimeZone(getBrowserTimeZone());
+      }
+
+      hasRestoredDraftRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestoredDraftRef.current) {
+      return;
+    }
+
+    saveTripDraft({
+      origin,
+      destination,
+      waypoints,
+      departureTimeLocal,
+      timeZone,
+      timeZoneManuallySet,
+    });
+  }, [
+    departureTimeLocal,
+    destination,
+    origin,
+    timeZone,
+    timeZoneManuallySet,
+    waypoints,
+  ]);
 
   function handleStopChange(
     setter: React.Dispatch<React.SetStateAction<EditableStop>>,
@@ -165,8 +288,62 @@ export function AnalyzeTripShell() {
     }));
   }
 
+  function handleOriginSelect(suggestion: LocationSuggestion) {
+    handleStopSelect(setOrigin, suggestion);
+
+    const inferredTimeZone = inferTimeZoneFromLocation(suggestion);
+
+    if (
+      shouldOfferOriginTimeZoneSwitch({
+        currentTimeZone: timeZone,
+        manualOverride: timeZoneManuallySet,
+        originTimeZone: inferredTimeZone,
+      })
+    ) {
+      setOriginTimeZoneSuggestion(inferredTimeZone);
+    } else {
+      setOriginTimeZoneSuggestion(null);
+    }
+  }
+
+  function handleTimeZoneChange(nextTimeZone: string) {
+    setTimeZone(nextTimeZone);
+    setTimeZoneManuallySet(true);
+    setOriginTimeZoneSuggestion(null);
+  }
+
+  function handleUseOriginTimeZone() {
+    if (!originTimeZoneSuggestion) {
+      return;
+    }
+
+    setTimeZone(originTimeZoneSuggestion);
+    setTimeZoneManuallySet(true);
+    setOriginTimeZoneSuggestion(null);
+  }
+
+  function handleClearTrip() {
+    analyzeAbortRef.current?.abort();
+    clearTripDraft();
+    setOrigin(createStop("origin"));
+    setDestination(createStop("destination"));
+    setWaypoints([]);
+    setDepartureTimeLocal(getDefaultDepartureTime());
+    setTimeZone(getBrowserTimeZone());
+    setTimeZoneManuallySet(false);
+    setOriginTimeZoneSuggestion(null);
+    setAnalysis(null);
+    setActiveSampleId(null);
+    setAnalysisError(null);
+    setIsRouteBuilderExpanded(true);
+  }
+
   async function handleAnalyze(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
 
     const hasIncompleteWaypoint = waypoints.some(
       (waypoint) => waypoint.query.trim().length > 0 && !waypoint.selected,
@@ -179,7 +356,7 @@ export function AnalyzeTripShell() {
       return;
     }
 
-    const departureDate = new Date(departureTimeLocal);
+    const departureDate = fromZonedTime(departureTimeLocal, timeZone);
 
     if (Number.isNaN(departureDate.getTime())) {
       setAnalysisError("Departure time is not valid yet. Choose a new date and time.");
@@ -206,7 +383,7 @@ export function AnalyzeTripShell() {
             waypoint.selected ? [waypoint.selected] : [],
           ),
           departureTimeUtc: departureDate.toISOString(),
-          clientTimeZone,
+          clientTimeZone: timeZone,
         }),
       });
 
@@ -225,6 +402,12 @@ export function AnalyzeTripShell() {
       startTransition(() => {
         setAnalysis(nextAnalysis);
         setActiveSampleId(highestRiskSample?.id ?? null);
+        setIsRouteBuilderExpanded(false);
+      });
+
+      window.requestAnimationFrame(() => {
+        summaryRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+        summaryRef.current?.focus({ preventScroll: true });
       });
     } catch (error) {
       if (abortController.signal.aborted) {
@@ -253,24 +436,30 @@ export function AnalyzeTripShell() {
     ? [
         {
           label: "Overall score",
-          value: analysis.summary.overallScore.toString(),
-          detail: analysis.summary.overallLabel,
+          value: `${analysis.summary.overallScore}/100`,
+          detail: `${analysis.summary.overallLabel} trip risk`,
+          help: "A 0-100 blended winter driving risk score. Higher numbers mean more snow, ice, low visibility, wind, darkness, or forecast uncertainty along the route.",
         },
         {
           label: "Worst segment",
-          value: analysis.summary.maxScore.toString(),
-          detail: analysis.summary.worstSegmentId ? "Flagged segment" : "No critical segment",
+          value: `${analysis.summary.maxScore}/100`,
+          detail: analysis.summary.worstSegmentId
+            ? "Highest checkpoint risk"
+            : "No critical segment",
+          help: "The highest risk score found at any checkpoint or segment. It can drive the recommendation even when the route average is lower.",
         },
         {
           label: "Hazard windows",
           value: analysis.hazardWindows.length.toString(),
           detail:
             analysis.hazardWindows.length > 0 ? "Time blocks flagged" : "No sustained window",
+          help: "Hazard windows group nearby high-risk checkpoints so short gaps do not hide a meaningful dangerous stretch.",
         },
         {
           label: "Sampled checkpoints",
           value: analysis.samples.length.toString(),
           detail: "ETA-matched forecast points",
+          help: "SnowRoute samples the route at checkpoints, estimates arrival time at each point, and matches the closest forecast hour.",
         },
       ]
     : [];
@@ -286,8 +475,8 @@ export function AnalyzeTripShell() {
                 Check the route before you go.
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Enter the stops, lock the route with search suggestions, then review the
-                winter risk profile by checkpoint.
+                Enter your route, choose a departure time, and review the winter risk
+                profile by checkpoint.
               </p>
             </div>
             <div className="grid min-w-full grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] text-center sm:min-w-[420px]">
@@ -300,7 +489,7 @@ export function AnalyzeTripShell() {
                   key={item.label}
                   className="border-l border-white/8 px-3 py-3 first:border-l-0"
                 >
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
                     {item.label}
                   </p>
                   <p className="mt-1 text-sm font-semibold text-slate-100">{item.value}</p>
@@ -309,6 +498,16 @@ export function AnalyzeTripShell() {
             </div>
           </div>
         </header>
+
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {isSubmitting
+            ? "Analyzing route."
+            : analysisError
+              ? `Analysis failed. ${analysisError}`
+              : analysis
+                ? "Latest route analysis is ready."
+                : "Trip builder ready."}
+        </div>
 
         {analysisError ? (
           <div className="mt-6 rounded-2xl border border-rose-300/20 bg-[linear-gradient(135deg,rgba(251,113,133,0.14),rgba(255,255,255,0.03))] px-5 py-4 text-sm text-rose-50 shadow-[0_18px_48px_rgba(37,9,15,0.24)]">
@@ -327,7 +526,12 @@ export function AnalyzeTripShell() {
         ) : null}
 
         {analysis ? (
-          <section className="glass-panel mt-6 rounded-2xl p-5 lg:p-6">
+          <section
+            ref={summaryRef}
+            tabIndex={-1}
+            className="glass-panel mt-6 scroll-mt-24 rounded-2xl p-5 outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 lg:p-6"
+            aria-label="Latest route analysis summary"
+          >
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-2">
                 <p className="eyebrow">Latest analysis</p>
@@ -336,7 +540,8 @@ export function AnalyzeTripShell() {
                     {latestRouteName}
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                    Focus on the overall score, the worst segment, and any flagged windows.
+                    Focus on the 0-100 overall score, the worst segment, and any
+                    flagged hazard windows.
                   </p>
                 </div>
               </div>
@@ -349,9 +554,14 @@ export function AnalyzeTripShell() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {analysisSnapshot.map((item) => (
                 <div key={item.label} className="metric-card rounded-xl p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    {item.label}
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
+                      {item.label}
+                    </p>
+                    <InfoTooltip label={`Explain ${item.label}`}>
+                      {item.help}
+                    </InfoTooltip>
+                  </div>
                   <p className="mt-3 text-3xl font-semibold text-white">{item.value}</p>
                   <p className="mt-2 text-sm text-slate-300">{item.detail}</p>
                 </div>
@@ -362,55 +572,121 @@ export function AnalyzeTripShell() {
 
         <main className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.68fr)]">
           <section className="min-w-0 space-y-6">
-            <RouteForm
-              origin={origin}
-              destination={destination}
-              waypoints={waypoints}
-              departureTimeLocal={departureTimeLocal}
-              timeZone={clientTimeZone}
-              isSubmitting={isSubmitting}
-              onOriginChange={(value) => handleStopChange(setOrigin, value)}
-              onOriginSelect={(suggestion) => handleStopSelect(setOrigin, suggestion)}
-              onDestinationChange={(value) => handleStopChange(setDestination, value)}
-              onDestinationSelect={(suggestion) => handleStopSelect(setDestination, suggestion)}
-              onWaypointChange={(id, value) => {
-                setWaypoints((currentWaypoints) =>
-                  currentWaypoints.map((waypoint) =>
-                    waypoint.id === id
-                      ? {
-                          ...waypoint,
-                          query: value,
-                          selected:
-                            waypoint.selected?.label === value ? waypoint.selected : null,
-                        }
-                      : waypoint,
-                  ),
-                );
-              }}
-              onWaypointSelect={(id, suggestion) => {
-                setWaypoints((currentWaypoints) =>
-                  currentWaypoints.map((waypoint) =>
-                    waypoint.id === id
-                      ? {
-                          ...waypoint,
-                          query: suggestion.label,
-                          selected: suggestion,
-                        }
-                      : waypoint,
-                  ),
-                );
-              }}
-              onWaypointAdd={() => {
-                setWaypoints((currentWaypoints) => [...currentWaypoints, createWaypoint()]);
-              }}
-              onWaypointRemove={(id) => {
-                setWaypoints((currentWaypoints) =>
-                  currentWaypoints.filter((waypoint) => waypoint.id !== id),
-                );
-              }}
-              onDepartureTimeChange={setDepartureTimeLocal}
-              onSubmit={handleAnalyze}
-            />
+            {analysis && !isRouteBuilderExpanded ? (
+              <section className="glass-panel rounded-2xl p-5 lg:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="eyebrow">Trip builder collapsed</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                      Route inputs saved
+                    </h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                      {latestRouteName} • {departureTimeLocal.replace("T", " at ")} •{" "}
+                      {timeZone}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsRouteBuilderExpanded(true)}
+                      className="min-h-11 rounded-xl border border-cyan-100/30 bg-cyan-300/[0.1] px-4 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-300/[0.16] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
+                    >
+                      Modify route
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearTrip}
+                      className="min-h-11 rounded-xl border border-white/12 bg-white/[0.035] px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
+                    >
+                      Clear trip
+                    </button>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <>
+                {analysis ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsRouteBuilderExpanded(false)}
+                      className="min-h-10 rounded-xl border border-white/12 bg-white/[0.035] px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
+                    >
+                      Collapse trip builder
+                    </button>
+                  </div>
+                ) : null}
+
+                <RouteForm
+                  origin={origin}
+                  destination={destination}
+                  waypoints={waypoints}
+                  departureTimeLocal={departureTimeLocal}
+                  timeZone={timeZone}
+                  originTimeZoneSuggestion={originTimeZoneSuggestion}
+                  isSubmitting={isSubmitting}
+                  onOriginChange={(value) => {
+                    handleStopChange(setOrigin, value);
+                    setOriginTimeZoneSuggestion(null);
+                  }}
+                  onOriginSelect={handleOriginSelect}
+                  onDestinationChange={(value) => handleStopChange(setDestination, value)}
+                  onDestinationSelect={(suggestion) =>
+                    handleStopSelect(setDestination, suggestion)
+                  }
+                  onWaypointChange={(id, value) => {
+                    setWaypoints((currentWaypoints) =>
+                      currentWaypoints.map((waypoint) =>
+                        waypoint.id === id
+                          ? {
+                              ...waypoint,
+                              query: value,
+                              selected:
+                                waypoint.selected?.label === value
+                                  ? waypoint.selected
+                                  : null,
+                            }
+                          : waypoint,
+                      ),
+                    );
+                  }}
+                  onWaypointSelect={(id, suggestion) => {
+                    setWaypoints((currentWaypoints) =>
+                      currentWaypoints.map((waypoint) =>
+                        waypoint.id === id
+                          ? {
+                              ...waypoint,
+                              query: suggestion.label,
+                              selected: suggestion,
+                            }
+                          : waypoint,
+                      ),
+                    );
+                  }}
+                  onWaypointAdd={() => {
+                    setWaypoints((currentWaypoints) =>
+                      canAddWaypoint(currentWaypoints.length)
+                        ? [...currentWaypoints, createWaypoint()]
+                        : currentWaypoints,
+                    );
+                  }}
+                  onWaypointRemove={(id) => {
+                    setWaypoints((currentWaypoints) =>
+                      currentWaypoints.filter((waypoint) => waypoint.id !== id),
+                    );
+                  }}
+                  onDepartureTimeChange={setDepartureTimeLocal}
+                  onTimeZoneChange={handleTimeZoneChange}
+                  onUseOriginTimeZone={handleUseOriginTimeZone}
+                  onDismissOriginTimeZone={() => {
+                    setOriginTimeZoneSuggestion(null);
+                    setTimeZoneManuallySet(true);
+                  }}
+                  onClearTrip={handleClearTrip}
+                  onSubmit={handleAnalyze}
+                />
+              </>
+            )}
 
             {analysis ? (
               <DepartureTimeOptimizer optimization={analysis.departureOptimization} />

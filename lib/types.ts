@@ -13,7 +13,7 @@ export const geocodeQuerySchema = z.object({
 export const analyzeRouteInputSchema = z.object({
   origin: locationSchema,
   destination: locationSchema,
-  waypoints: z.array(locationSchema).max(8).optional().default([]),
+  waypoints: z.array(locationSchema).max(2).optional().default([]),
   departureTimeUtc: z.string().datetime({ offset: true }),
   clientTimeZone: z.string().trim().min(1),
 });

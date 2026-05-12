@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { useGeocodeSearch } from "@/hooks/use-geocode-search";
 import type { LocationSuggestion } from "@/lib/types";
@@ -41,28 +41,49 @@ export function LocationInput({
 }: LocationInputProps) {
   const inputId = useId();
   const listboxId = `${inputId}-suggestions`;
-  const [hasFocus, setHasFocus] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const shouldSearch =
     !disabled &&
     value.trim().length >= 2 &&
     (!selectedLocation || selectedLocation.label.trim() !== value.trim());
   const { suggestions, isLoading, error } = useGeocodeSearch(value, shouldSearch);
   const showDropdown =
-    hasFocus && shouldSearch && (isLoading || suggestions.length > 0 || Boolean(error));
+    isOpen && shouldSearch && (isLoading || suggestions.length > 0 || Boolean(error));
+  const activeOptionIndex = Math.min(activeIndex, Math.max(suggestions.length - 1, 0));
+  const activeSuggestion =
+    showDropdown && suggestions.length > 0 ? suggestions[activeOptionIndex] : null;
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        rootRef.current &&
+        event.target instanceof Node &&
+        !rootRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, []);
+
+  function selectSuggestion(suggestion: LocationSuggestion) {
+    onSelect(suggestion);
+    setIsOpen(false);
+  }
 
   return (
     <div
+      ref={rootRef}
       className={`location-input relative space-y-2 ${
         showDropdown ? "location-input--open" : ""
       }`}
-      onFocusCapture={() => setHasFocus(true)}
-      onBlurCapture={(event) => {
-        const nextTarget = event.relatedTarget;
-
-        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-          setHasFocus(false);
-        }
-      }}
     >
       <label
         htmlFor={inputId}
@@ -86,9 +107,41 @@ export function LocationInput({
         aria-autocomplete="list"
         aria-controls={showDropdown ? listboxId : undefined}
         aria-expanded={showDropdown}
+        aria-activedescendant={
+          activeSuggestion ? `${listboxId}-option-${activeOptionIndex}` : undefined
+        }
         aria-busy={isLoading}
-        onChange={(event) => onValueChange(event.target.value)}
-        className="h-14 w-full rounded-xl border border-white/12 bg-white/[0.045] px-4 text-base text-slate-50 outline-none transition duration-200 placeholder:text-slate-500 focus:border-cyan-200/55 focus:bg-cyan-200/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
+        onFocus={() => setIsOpen(true)}
+        onChange={(event) => {
+          setActiveIndex(0);
+          setIsOpen(true);
+          onValueChange(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setIsOpen(true);
+            setActiveIndex((currentIndex) =>
+              Math.min(currentIndex + 1, Math.max(suggestions.length - 1, 0)),
+            );
+          }
+
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveIndex((currentIndex) => Math.max(currentIndex - 1, 0));
+          }
+
+          if (event.key === "Enter" && activeSuggestion) {
+            event.preventDefault();
+            selectSuggestion(activeSuggestion);
+          }
+
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setIsOpen(false);
+          }
+        }}
+        className="h-14 w-full rounded-xl border border-white/12 bg-white/[0.045] px-4 text-base text-slate-50 outline-none transition duration-200 placeholder:text-slate-400 focus:border-cyan-200/55 focus:bg-cyan-200/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
       />
       {selectedLocation ? (
         <p className="min-h-4 text-xs text-slate-400">
@@ -99,7 +152,7 @@ export function LocationInput({
           • {selectedLocation.lat.toFixed(3)}, {selectedLocation.lon.toFixed(3)}
         </p>
       ) : (
-        <p className="min-h-4 text-xs text-slate-500">
+        <p className="min-h-4 text-xs text-slate-300">
           Search exact addresses, places, streets, or cities.
         </p>
       )}
@@ -122,20 +175,28 @@ export function LocationInput({
           ) : null}
           {!isLoading && !error && suggestions.length > 0 ? (
             <ul className="max-h-72 overflow-y-auto overscroll-contain py-1.5">
-              {suggestions.map((suggestion) => (
+              {suggestions.map((suggestion, index) => {
+                const isActive = index === activeOptionIndex;
+
+                return (
                 <li key={suggestion.id}>
                   <button
+                    id={`${listboxId}-option-${index}`}
                     type="button"
                     role="option"
-                    aria-selected={false}
+                    aria-selected={isActive}
                     onPointerDown={(event) => {
                       event.preventDefault();
                     }}
+                    onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => {
-                      onSelect(suggestion);
-                      setHasFocus(false);
+                      selectSuggestion(suggestion);
                     }}
-                    className="group flex w-full flex-col gap-2 px-4 py-3 text-left outline-none transition hover:bg-cyan-100/[0.07] focus-visible:bg-cyan-100/[0.09]"
+                    className={`group flex min-h-16 w-full flex-col gap-2 px-4 py-3 text-left outline-none transition ${
+                      isActive
+                        ? "bg-cyan-100/[0.09]"
+                        : "hover:bg-cyan-100/[0.07] focus-visible:bg-cyan-100/[0.09]"
+                    }`}
                   >
                     <span className="flex items-start justify-between gap-3">
                       <span className="text-sm font-semibold text-slate-50 transition group-hover:text-white">
@@ -156,7 +217,8 @@ export function LocationInput({
                     </span>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           ) : null}
         </div>

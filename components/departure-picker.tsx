@@ -184,6 +184,8 @@ export function DeparturePicker({
   const selectedDate = parseDateValue(dateValue) ?? new Date();
   const displayedDateValue = dateDraft ?? dateValue;
   const displayedTimeValue = timeDraft ?? formatClock(minutes);
+  const firstForecastDateValue = dayOptions[0]?.dateValue ?? dateValue;
+  const lastForecastDateValue = dayOptions.at(-1)?.dateValue ?? dateValue;
   const minimumMinutes = getMinimumMinutesForDate(dateValue);
   const normalizedMinutes = Math.max(minutes, minimumMinutes);
   const railValue = Math.min(
@@ -202,7 +204,11 @@ export function DeparturePicker({
   function commit(nextDateValue: string, nextMinutes: number) {
     const validDate = parseDateValue(nextDateValue);
 
-    if (!validDate) {
+    if (
+      !validDate ||
+      nextDateValue < firstForecastDateValue ||
+      nextDateValue > lastForecastDateValue
+    ) {
       return;
     }
 
@@ -271,7 +277,7 @@ export function DeparturePicker({
           <div className="flex items-center justify-between gap-3">
             <label
               htmlFor="departure-date"
-              className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500"
+              className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300"
             >
               Date
             </label>
@@ -280,6 +286,7 @@ export function DeparturePicker({
               type="text"
               inputMode="numeric"
               value={displayedDateValue}
+              aria-describedby="departure-date-availability"
               onChange={(event) => handleDateTextChange(event.target.value)}
               onBlur={commitDateDraft}
               onKeyDown={(event) => {
@@ -289,7 +296,7 @@ export function DeparturePicker({
                 }
               }}
               disabled={disabled}
-              className="h-9 w-32 rounded-lg border border-white/10 bg-black/10 px-3 text-right text-xs font-semibold text-slate-200 outline-none transition focus:border-cyan-200/50 focus:bg-cyan-300/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-10 w-36 rounded-lg border border-white/12 bg-black/15 px-3 text-right text-sm font-semibold text-slate-100 outline-none transition placeholder:text-slate-400 focus:border-cyan-200/60 focus:bg-cyan-300/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -302,6 +309,7 @@ export function DeparturePicker({
                   key={option.dateValue}
                   type="button"
                   disabled={disabled}
+                  aria-pressed={isSelected}
                   onClick={() => commit(option.dateValue, normalizedMinutes)}
                   className={`rounded-xl border px-3 py-3 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/55 disabled:cursor-not-allowed disabled:opacity-60 ${
                     isSelected
@@ -327,7 +335,7 @@ export function DeparturePicker({
               type="button"
               disabled={disabled || minutes <= minimumMinutes}
               onClick={() => nudgeMinutes(-TIME_STEP_MINUTES)}
-              className="flex h-14 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-lg font-semibold text-slate-100 transition hover:border-cyan-100/25 hover:bg-cyan-300/[0.08] disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex h-14 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-lg font-semibold text-slate-100 transition hover:border-cyan-100/35 hover:bg-cyan-300/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
               aria-label="Move departure time 15 minutes earlier"
             >
               -
@@ -355,7 +363,7 @@ export function DeparturePicker({
               type="button"
               disabled={disabled || minutes >= 23 * 60 + 59}
               onClick={() => nudgeMinutes(TIME_STEP_MINUTES)}
-              className="flex h-14 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-lg font-semibold text-slate-100 transition hover:border-cyan-100/25 hover:bg-cyan-300/[0.08] disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex h-14 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-lg font-semibold text-slate-100 transition hover:border-cyan-100/35 hover:bg-cyan-300/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
               aria-label="Move departure time 15 minutes later"
             >
               +
@@ -372,9 +380,9 @@ export function DeparturePicker({
               disabled={disabled}
               onChange={(event) => commit(dateValue, Number(event.target.value))}
               aria-label="Departure time"
-              className="h-2 w-full cursor-pointer accent-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="departure-time-range h-3 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <div className="mt-3 flex justify-between text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <div className="mt-3 flex justify-between text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
               <span>12 AM</span>
               <span>6 AM</span>
               <span>12 PM</span>
@@ -393,10 +401,11 @@ export function DeparturePicker({
                   key={preset.label}
                   type="button"
                   disabled={isDisabled}
+                  aria-pressed={isActive}
                   onClick={() => commit(dateValue, preset.minutes)}
-                  className={`rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                  className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45 ${
                     isActive
-                      ? "border-cyan-200/55 bg-cyan-300/[0.14] text-cyan-50"
+                      ? "border-cyan-100/70 bg-cyan-300/[0.2] text-cyan-50 shadow-[0_0_0_3px_rgba(125,211,252,0.1)]"
                       : "border-white/10 bg-white/[0.025] text-slate-300 hover:border-cyan-100/25 hover:bg-cyan-300/[0.07]"
                   }`}
                 >
@@ -406,8 +415,8 @@ export function DeparturePicker({
             })}
           </div>
 
-          <p className="text-xs leading-5 text-slate-400">
-            Forecasts are available through {getMonthDay(dayOptions.at(-1)?.date ?? selectedDate)}.
+          <p id="departure-date-availability" className="text-xs leading-5 text-slate-300">
+            Forecast dates before today or after {getMonthDay(dayOptions.at(-1)?.date ?? selectedDate)} are unavailable.
           </p>
         </div>
       </div>

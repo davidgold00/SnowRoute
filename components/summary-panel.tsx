@@ -1,3 +1,4 @@
+import { InfoTooltip } from "@/components/info-tooltip";
 import { RecommendationPill, RiskPill } from "@/components/status-pill";
 import type { RouteAnalysisResponse } from "@/lib/types";
 
@@ -96,8 +97,8 @@ export function SummaryPanel({
             <h2 className="text-4xl font-semibold leading-none tracking-tight text-white">
               {analysis.summary.overallScore}
             </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              overall winter driving risk across the sampled route
+            <p className="mt-2 text-sm text-slate-300">
+              overall winter driving risk out of 100
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -121,15 +122,33 @@ export function SummaryPanel({
           </p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Average sample</p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+              Average checkpoint risk
+            </p>
+            <InfoTooltip label="Explain average checkpoint risk">
+              The average 0-100 risk score across sampled checkpoints. It shows
+              the general route trend, while the worst segment captures the peak hazard.
+            </InfoTooltip>
+          </div>
           <p className="mt-2 text-2xl font-semibold text-white">
-            {analysis.summary.averageScore}
+            {analysis.summary.averageScore}/100
           </p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Worst segment</p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+              Worst segment
+            </p>
+            <InfoTooltip label="Explain worst segment">
+              The highest 0-100 checkpoint or segment score. A short severe stretch
+              can make the trip meaningfully dangerous even when the average is lower.
+            </InfoTooltip>
+          </div>
           <div className="mt-2 flex items-center gap-3">
-            <p className="text-2xl font-semibold text-white">{analysis.summary.maxScore}</p>
+            <p className="text-2xl font-semibold text-white">
+              {analysis.summary.maxScore}/100
+            </p>
             {worstSegment ? <RiskPill label={worstSegment.label} /> : null}
           </div>
         </div>

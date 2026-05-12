@@ -6,10 +6,12 @@ import {
   MapContainer,
   Popup,
   Polyline,
+  ScaleControl,
   TileLayer,
   useMap,
 } from "react-leaflet";
 
+import { RiskLegend } from "@/components/risk-legend";
 import type { RouteAnalysisResponse } from "@/lib/types";
 
 function riskColor(label: string) {
@@ -78,6 +80,8 @@ export default function RouteMap({
     coordinate.lat,
     coordinate.lon,
   ]) as [number, number][];
+  const activeSample =
+    analysis.samples.find((sample) => sample.id === activeSampleId) ?? null;
 
   return (
     <div className="map-shell overflow-hidden rounded-2xl border border-white/10">
@@ -85,28 +89,34 @@ export default function RouteMap({
         center={routePath[0]}
         zoom={8}
         scrollWheelZoom
-        className="h-[520px] w-full"
+        className="h-[420px] w-full sm:h-[520px]"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBounds analysis={analysis} />
+        <ScaleControl imperial={false} position="bottomleft" />
         <Polyline positions={routePath} pathOptions={{ color: "#18304d", weight: 10 }} />
-        {analysis.route.segments.map((segment) => (
-          <Polyline
-            key={segment.id}
-            positions={segment.coordinates.map((coordinate) => [
-              coordinate.lat,
-              coordinate.lon,
-            ])}
-            pathOptions={{
-              color: riskColor(segment.label),
-              weight: 7,
-              opacity: 0.95,
-            }}
-          />
-        ))}
+        {analysis.route.segments.map((segment) => {
+          const isActive =
+            activeSampleId === segment.fromSampleId || activeSampleId === segment.toSampleId;
+
+          return (
+            <Polyline
+              key={segment.id}
+              positions={segment.coordinates.map((coordinate) => [
+                coordinate.lat,
+                coordinate.lon,
+              ])}
+              pathOptions={{
+                color: riskColor(segment.label),
+                weight: isActive ? 10 : 7,
+                opacity: isActive ? 1 : 0.95,
+              }}
+            />
+          );
+        })}
         {analysis.samples.map((sample) => {
           const isActive = activeSampleId === sample.id;
 
@@ -114,10 +124,10 @@ export default function RouteMap({
             <CircleMarker
               key={sample.id}
               center={[sample.coordinate.lat, sample.coordinate.lon]}
-              radius={isActive ? 8 : 5}
+              radius={isActive ? 11 : 8}
               pathOptions={{
                 color: "#0b1322",
-                weight: 2,
+                weight: isActive ? 3 : 2,
                 fillColor: riskColor(sample.label),
                 fillOpacity: 1,
               }}
@@ -149,6 +159,25 @@ export default function RouteMap({
           );
         })}
       </MapContainer>
+      <div className="pointer-events-none absolute right-3 top-3 z-[450] w-[min(280px,calc(100%-1.5rem))]">
+        <div className="pointer-events-auto">
+          <RiskLegend compact />
+        </div>
+      </div>
+      <div className="border-t border-white/10 bg-[#0b1524]/92 px-4 py-3 text-sm leading-6 text-slate-200">
+        {activeSample ? (
+          <p>
+            Selected checkpoint: {activeSample.etaDisplay}, {activeSample.distanceKm.toFixed(0)} km,
+            risk {activeSample.score}/100 ({activeSample.label}).{" "}
+            {activeSample.weather.summary}
+          </p>
+        ) : (
+          <p>
+            Route map shows colored route segments and checkpoint markers using the
+            Low, Moderate, High, and Severe risk scale.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

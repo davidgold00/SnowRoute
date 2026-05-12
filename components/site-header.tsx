@@ -58,12 +58,12 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/8 bg-[#071012]/78 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 sm:flex-nowrap sm:gap-6">
         <div className="flex items-center gap-4">
           <Link
             href="/"
-            className="group flex items-center gap-3 transition-opacity hover:opacity-85"
-            aria-label="SnowRoute Home"
+            className="group flex items-center gap-3 rounded-xl transition-opacity hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
+            aria-label="Go to homepage"
           >
             <div className="rounded-xl border border-cyan-200/18 bg-cyan-300/8 p-2">
               <div className="group-hover:rotate-12">
@@ -71,10 +71,13 @@ export function SiteHeader() {
               </div>
             </div>
             <SnowRouteWordmark />
+            <span className="hidden rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-slate-200 sm:inline-flex">
+              Home
+            </span>
           </Link>
         </div>
 
-        <nav className="flex items-center gap-2">
+        <nav className="flex w-full min-w-0 items-center gap-2 overflow-x-auto sm:w-auto sm:overflow-visible">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
 
@@ -82,10 +85,10 @@ export function SiteHeader() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                className={`shrink-0 rounded-lg border px-2.5 py-2 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 sm:px-3 sm:text-sm ${
                   isActive
-                    ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                    : "text-slate-300 hover:bg-white/6 hover:text-white"
+                    ? "border-cyan-200/35 bg-cyan-300/[0.12] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_0_1px_rgba(125,211,252,0.08)]"
+                    : "border-transparent text-slate-300 hover:bg-white/6 hover:text-white"
                 }`}
                 aria-current={isActive ? "page" : undefined}
               >

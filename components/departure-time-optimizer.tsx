@@ -133,7 +133,7 @@ export function DepartureTimeOptimizer({
             },
           ].map((item) => (
             <div key={item.label} className="border-l border-white/8 px-3 py-3 first:border-l-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
                 {item.label}
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-100">{item.value}</p>
@@ -145,14 +145,14 @@ export function DepartureTimeOptimizer({
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 rounded-xl border border-white/10 bg-[#0b1422]/70 p-4">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
               Safety score by local departure hour
             </p>
             <div className="flex flex-wrap gap-2">
               {legendItems.map((item) => (
                 <span
                   key={item.label}
-                  className="inline-flex items-center gap-2 text-[11px] font-medium text-slate-400"
+                  className="inline-flex items-center gap-2 text-[11px] font-medium text-slate-300"
                 >
                   <span
                     aria-hidden="true"
@@ -267,17 +267,21 @@ export function DepartureTimeOptimizer({
               })}
             </svg>
 
-            <div className="absolute bottom-3 left-12 right-4 flex justify-between text-xs font-semibold text-slate-500">
+            <div className="absolute bottom-3 left-12 right-4 flex justify-between text-xs font-semibold text-slate-300">
               {[0, 6, 12, 18, 23].map((hour) => (
                 <span key={hour}>{formatHourTick(hour)}</span>
               ))}
             </div>
-            <div className="absolute left-3 top-5 grid h-[calc(100%-3.5rem)] content-between text-xs text-slate-500">
+            <div className="absolute left-3 top-5 grid h-[calc(100%-3.5rem)] content-between text-xs text-slate-300">
               {[100, 75, 50, 25, 0].map((value) => (
                 <span key={value}>{value}</span>
               ))}
             </div>
           </div>
+          <p className="mt-3 text-xs leading-5 text-slate-300">
+            Safety is scored from 0 to 100; higher is safer. Risk uses the inverse
+            route risk score where higher means more dangerous conditions.
+          </p>
         </div>
 
         <div className="grid gap-3">
@@ -294,13 +298,14 @@ export function DepartureTimeOptimizer({
                   {focusedOption.departureTimeDisplay}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Safety {focusedOption.safetyScore} • risk {focusedOption.overallScore}
+                  Safety {focusedOption.safetyScore}/100 • risk{" "}
+                  {focusedOption.overallScore}/100
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
+                <p className="mt-2 text-sm leading-6 text-slate-300">
                   {focusedOption.guidance.headline}
                 </p>
                 <div className="mt-4 rounded-lg border border-white/10 bg-black/10 px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
                     Forecast confidence
                   </p>
                   <p className="mt-1 text-sm text-slate-300">
@@ -326,7 +331,7 @@ export function DepartureTimeOptimizer({
                 >
                   <span className="text-sm font-semibold">{option.departureTimeDisplay}</span>
                   <span className="text-xs uppercase tracking-[0.16em]">
-                    safety {option.safetyScore}
+                    safety {option.safetyScore}/100
                   </span>
                 </div>
               ))}

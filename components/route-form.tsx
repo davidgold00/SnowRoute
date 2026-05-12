@@ -4,6 +4,8 @@ import type { FormEvent } from "react";
 
 import { DeparturePicker } from "@/components/departure-picker";
 import { LocationInput } from "@/components/location-input";
+import { TimeZoneSelector } from "@/components/time-zone-selector";
+import { MAX_WAYPOINTS } from "@/lib/time-zones";
 import type { LocationSuggestion } from "@/lib/types";
 
 export type EditableStop = {
@@ -18,6 +20,7 @@ type RouteFormProps = {
   waypoints: EditableStop[];
   departureTimeLocal: string;
   timeZone: string;
+  originTimeZoneSuggestion: string | null;
   isSubmitting: boolean;
   onOriginChange: (value: string) => void;
   onOriginSelect: (suggestion: LocationSuggestion) => void;
@@ -28,6 +31,10 @@ type RouteFormProps = {
   onWaypointAdd: () => void;
   onWaypointRemove: (id: string) => void;
   onDepartureTimeChange: (value: string) => void;
+  onTimeZoneChange: (value: string) => void;
+  onUseOriginTimeZone: () => void;
+  onDismissOriginTimeZone: () => void;
+  onClearTrip: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
 };
 
@@ -37,6 +44,7 @@ export function RouteForm({
   waypoints,
   departureTimeLocal,
   timeZone,
+  originTimeZoneSuggestion,
   isSubmitting,
   onOriginChange,
   onOriginSelect,
@@ -47,6 +55,10 @@ export function RouteForm({
   onWaypointAdd,
   onWaypointRemove,
   onDepartureTimeChange,
+  onTimeZoneChange,
+  onUseOriginTimeZone,
+  onDismissOriginTimeZone,
+  onClearTrip,
   onSubmit,
 }: RouteFormProps) {
   const hasIncompleteWaypoint = waypoints.some(
@@ -58,11 +70,10 @@ export function RouteForm({
     Boolean(departureTimeLocal) &&
     !hasIncompleteWaypoint &&
     !isSubmitting;
-  const lockedStops =
-    Number(Boolean(origin.selected)) +
-    Number(Boolean(destination.selected)) +
-    waypoints.filter((waypoint) => waypoint.selected).length;
-  const totalStops = 2 + waypoints.length;
+  const lockedRequiredStops = Number(Boolean(origin.selected)) + Number(Boolean(destination.selected));
+  const selectedWaypoints = waypoints.filter((waypoint) => waypoint.selected).length;
+  const waypointLimitReached = waypoints.length >= MAX_WAYPOINTS;
+  const waypointHelperId = "waypoint-helper";
 
   return (
     <form
@@ -80,12 +91,12 @@ export function RouteForm({
         </div>
         <div className="grid grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] text-center">
           {[
-            { label: "Stops", value: `${lockedStops}/${totalStops}` },
-            { label: "Waypoints", value: waypoints.length.toString() },
+            { label: "Required stops", value: `${lockedRequiredStops}/2` },
+            { label: "Waypoints", value: `${selectedWaypoints}/${MAX_WAYPOINTS}` },
             { label: "Status", value: canAnalyze ? "Ready" : "Draft" },
           ].map((item) => (
             <div key={item.label} className="border-l border-white/8 px-3 py-3 first:border-l-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
                 {item.label}
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-100">{item.value}</p>
@@ -122,14 +133,16 @@ export function RouteForm({
               Optional Waypoints
             </p>
             <p className="mt-1 text-sm text-slate-400">
-              Capture planned stops or route pivots without leaving the flow.
+              Capture planned stops or route pivots without leaving the flow. Maximum{" "}
+              {MAX_WAYPOINTS} waypoints supported.
             </p>
           </div>
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || waypointLimitReached}
             onClick={onWaypointAdd}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-200/25 bg-cyan-300/10 px-3 text-sm font-semibold text-cyan-50 transition hover:border-cyan-100/45 hover:bg-cyan-300/16 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/55 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-describedby={waypointHelperId}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-cyan-200/25 bg-cyan-300/10 px-3 text-sm font-semibold text-cyan-50 transition hover:border-cyan-100/45 hover:bg-cyan-300/16 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/55 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span aria-hidden="true" className="text-base leading-none">
               +
@@ -137,6 +150,9 @@ export function RouteForm({
             Add waypoint
           </button>
         </div>
+        <p id={waypointHelperId} className="text-xs leading-5 text-slate-300">
+          Waypoints are optional. Required stops are only origin and destination.
+        </p>
 
         {waypoints.length > 0 ? (
           <div className="grid gap-4">
@@ -152,7 +168,8 @@ export function RouteForm({
                   <button
                     type="button"
                     onClick={() => onWaypointRemove(waypoint.id)}
-                    className="rounded-lg px-2 py-1 text-sm text-slate-400 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/45"
+                    aria-label={`Remove waypoint ${index + 1}`}
+                    className="min-h-10 rounded-lg px-3 py-1 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/45"
                   >
                     Remove
                   </button>
@@ -177,21 +194,45 @@ export function RouteForm({
       </div>
 
       <div className="route-builder-actions grid gap-5 border-t border-white/10 pt-6">
-        <DeparturePicker
-          value={departureTimeLocal}
-          timeZone={timeZone}
-          disabled={isSubmitting}
-          onChange={onDepartureTimeChange}
-        />
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+          <DeparturePicker
+            value={departureTimeLocal}
+            timeZone={timeZone}
+            disabled={isSubmitting}
+            onChange={onDepartureTimeChange}
+          />
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <TimeZoneSelector
+              value={timeZone}
+              disabled={isSubmitting}
+              originTimeZoneSuggestion={originTimeZoneSuggestion}
+              onChange={onTimeZoneChange}
+              onUseOriginTimeZone={onUseOriginTimeZone}
+              onDismissOriginTimeZone={onDismissOriginTimeZone}
+            />
+          </div>
+        </div>
 
         <div className="space-y-3">
-          <button
-            type="submit"
-            disabled={!canAnalyze}
-            className="flex h-14 w-full items-center justify-center rounded-xl bg-[linear-gradient(135deg,#b7f0ff,#5bd0f2_52%,#8be8c7)] px-5 text-sm font-bold uppercase tracking-[0.18em] text-slate-950 shadow-[0_14px_34px_rgba(91,208,242,0.22)] transition duration-200 hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
-          >
-            {isSubmitting ? "Analyzing route..." : "Analyze route risk"}
-          </button>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <button
+              type="submit"
+              disabled={!canAnalyze}
+              aria-busy={isSubmitting}
+              className="flex h-14 w-full items-center justify-center rounded-xl bg-[linear-gradient(135deg,#b7f0ff,#5bd0f2_52%,#8be8c7)] px-5 text-sm font-bold uppercase tracking-[0.18em] text-slate-950 shadow-[0_14px_34px_rgba(91,208,242,0.22)] transition duration-200 hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
+            >
+              {isSubmitting ? "Analyzing route..." : "Analyze route risk"}
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={onClearTrip}
+              className="min-h-14 rounded-xl border border-white/12 bg-white/[0.035] px-4 text-sm font-semibold text-slate-100 transition hover:border-cyan-100/25 hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              Clear trip
+            </button>
+          </div>
           <p className="text-xs leading-5 text-slate-400">
             SnowRoute evaluates evenly spaced checkpoints, matches forecast time by ETA,
             and surfaces the most dangerous windows first.
