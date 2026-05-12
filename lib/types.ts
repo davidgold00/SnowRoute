@@ -28,6 +28,8 @@ export type LocationSuggestion = Coordinate & {
   label: string;
   country: string | null;
   region: string | null;
+  detail: string | null;
+  placeType: "Address" | "Place" | "Street" | "City" | "Region";
 };
 
 export type AnalyzeRouteInput = z.infer<typeof analyzeRouteInputSchema>;

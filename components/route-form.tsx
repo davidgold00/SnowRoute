@@ -2,6 +2,7 @@
 
 import type { FormEvent } from "react";
 
+import { DeparturePicker } from "@/components/departure-picker";
 import { LocationInput } from "@/components/location-input";
 import type { LocationSuggestion } from "@/lib/types";
 
@@ -29,15 +30,6 @@ type RouteFormProps = {
   onDepartureTimeChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
 };
-
-function getTodayDateInputValue() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = `${today.getMonth() + 1}`.padStart(2, "0");
-  const day = `${today.getDate()}`.padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
 
 export function RouteForm({
   origin,
@@ -71,17 +63,6 @@ export function RouteForm({
     Number(Boolean(destination.selected)) +
     waypoints.filter((waypoint) => waypoint.selected).length;
   const totalStops = 2 + waypoints.length;
-  const [departureDate = "", departureClockTime = ""] = departureTimeLocal.split("T");
-
-  function handleDepartureDateChange(value: string) {
-    onDepartureTimeChange(value ? `${value}T${departureClockTime || "09:00"}` : "");
-  }
-
-  function handleDepartureTimeChange(value: string) {
-    const nextDate = departureDate || getTodayDateInputValue();
-
-    onDepartureTimeChange(value ? `${nextDate}T${value}` : `${nextDate}T00:00`);
-  }
 
   return (
     <form
@@ -116,7 +97,7 @@ export function RouteForm({
       <div className="route-builder-locations grid gap-4 lg:grid-cols-2">
         <LocationInput
           label="Origin"
-          placeholder="Start city, address, or landmark"
+          placeholder="Exact origin address, place, or city"
           value={origin.query}
           selectedLocation={origin.selected}
           onValueChange={onOriginChange}
@@ -125,7 +106,7 @@ export function RouteForm({
         />
         <LocationInput
           label="Destination"
-          placeholder="End city, address, or landmark"
+          placeholder="Exact destination address, place, or city"
           value={destination.query}
           selectedLocation={destination.selected}
           onValueChange={onDestinationChange}
@@ -178,7 +159,7 @@ export function RouteForm({
                 </div>
                 <LocationInput
                   label={`Waypoint ${index + 1}`}
-                  placeholder="Optional stop or detour point"
+                  placeholder="Optional address, place, or detour point"
                   value={waypoint.query}
                   selectedLocation={waypoint.selected}
                   onValueChange={(value) => onWaypointChange(waypoint.id, value)}
@@ -195,43 +176,13 @@ export function RouteForm({
         )}
       </div>
 
-      <div className="route-builder-actions grid gap-5 border-t border-white/10 pt-6 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)] lg:items-start">
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
-            Departure Time
-          </p>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
-            <label className="space-y-2" htmlFor="departure-date">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Date
-              </span>
-              <input
-                id="departure-date"
-                type="date"
-                value={departureDate}
-                onChange={(event) => handleDepartureDateChange(event.target.value)}
-                disabled={isSubmitting}
-                className="h-14 w-full min-w-0 rounded-xl border border-white/12 bg-white/[0.045] px-4 text-base text-slate-50 outline-none transition duration-200 [color-scheme:dark] focus:border-cyan-200/55 focus:bg-cyan-200/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-            <label className="space-y-2" htmlFor="departure-clock-time">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Time
-              </span>
-              <input
-                id="departure-clock-time"
-                type="time"
-                value={departureClockTime}
-                onChange={(event) => handleDepartureTimeChange(event.target.value)}
-                disabled={isSubmitting}
-                className="h-14 w-full min-w-0 rounded-xl border border-white/12 bg-white/[0.045] px-4 text-base text-slate-50 outline-none transition duration-200 [color-scheme:dark] focus:border-cyan-200/55 focus:bg-cyan-200/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-          </div>
-          <p className="text-xs text-slate-400">
-            Departure is interpreted in <span className="text-slate-200">{timeZone}</span>.
-          </p>
-        </div>
+      <div className="route-builder-actions grid gap-5 border-t border-white/10 pt-6">
+        <DeparturePicker
+          value={departureTimeLocal}
+          timeZone={timeZone}
+          disabled={isSubmitting}
+          onChange={onDepartureTimeChange}
+        />
 
         <div className="space-y-3">
           <button

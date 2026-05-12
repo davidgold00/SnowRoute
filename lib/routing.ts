@@ -22,7 +22,14 @@ type GeocodeFeature = {
     region?: string;
     county?: string;
     locality?: string;
+    localadmin?: string;
+    borough?: string;
+    neighbourhood?: string;
     name?: string;
+    housenumber?: string;
+    street?: string;
+    postalcode?: string;
+    layer?: string;
   };
 };
 
@@ -103,6 +110,24 @@ async function parseApiError(response: Response) {
 }
 
 function createSuggestionLabel(feature: GeocodeFeature) {
+  const streetAddress = [feature.properties?.housenumber, feature.properties?.street]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(" ");
+  const locality =
+    feature.properties?.locality ??
+    feature.properties?.localadmin ??
+    feature.properties?.borough ??
+    feature.properties?.county;
+
+  if (streetAddress) {
+    return compactLocationParts([
+      streetAddress,
+      locality,
+      feature.properties?.region,
+      feature.properties?.country,
+    ]).join(", ");
+  }
+
   const label = feature.properties?.label?.trim();
 
   if (label) {
@@ -117,6 +142,68 @@ function createSuggestionLabel(feature: GeocodeFeature) {
   ].filter((part): part is string => Boolean(part && part.trim()));
 
   return parts.join(", ");
+}
+
+function compactLocationParts(parts: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+
+  return parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .filter((part) => {
+      const normalizedPart = part.toLowerCase();
+
+      if (seen.has(normalizedPart)) {
+        return false;
+      }
+
+      seen.add(normalizedPart);
+      return true;
+    });
+}
+
+function getSuggestionType(feature: GeocodeFeature): LocationSuggestion["placeType"] {
+  switch (feature.properties?.layer) {
+    case "address":
+      return "Address";
+    case "venue":
+      return "Place";
+    case "street":
+      return "Street";
+    case "locality":
+    case "localadmin":
+      return "City";
+    default:
+      return "Region";
+  }
+}
+
+function createSuggestionDetail(feature: GeocodeFeature) {
+  const placeType = getSuggestionType(feature);
+  const locality =
+    feature.properties?.locality ??
+    feature.properties?.localadmin ??
+    feature.properties?.borough ??
+    feature.properties?.county;
+  const details =
+    placeType === "Address"
+      ? [
+          feature.properties?.neighbourhood,
+          locality,
+          feature.properties?.region,
+          feature.properties?.postalcode,
+          feature.properties?.country,
+        ]
+      : [
+          feature.properties?.street,
+          feature.properties?.neighbourhood,
+          locality,
+          feature.properties?.region,
+          feature.properties?.country,
+        ];
+  const compactDetails = compactLocationParts(details);
+
+  return compactDetails.length > 0 ? compactDetails.join(" • ") : null;
 }
 
 export async function geocodeLocation(query: string) {
@@ -134,7 +221,16 @@ export async function geocodeLocation(query: string) {
 
   const params = new URLSearchParams({
     text: query.trim(),
-    size: "5",
+    size: "8",
+    layers: [
+      "address",
+      "venue",
+      "street",
+      "locality",
+      "localadmin",
+      "county",
+      "region",
+    ].join(","),
     api_key: getOrsApiKey(),
   });
 
@@ -174,6 +270,8 @@ export async function geocodeLocation(query: string) {
           feature.properties?.county ??
           feature.properties?.locality ??
           null,
+        detail: createSuggestionDetail(feature),
+        placeType: getSuggestionType(feature),
       } satisfies LocationSuggestion;
     })
     .filter((suggestion): suggestion is LocationSuggestion => suggestion !== null);

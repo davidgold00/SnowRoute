@@ -15,6 +15,21 @@ type LocationInputProps = {
   disabled?: boolean;
 };
 
+function getPlaceTypeTone(placeType: LocationSuggestion["placeType"]) {
+  switch (placeType) {
+    case "Address":
+      return "border-cyan-200/35 bg-cyan-300/12 text-cyan-50";
+    case "Place":
+      return "border-emerald-200/30 bg-emerald-300/10 text-emerald-50";
+    case "Street":
+      return "border-sky-200/30 bg-sky-300/10 text-sky-50";
+    case "City":
+      return "border-violet-200/25 bg-violet-300/10 text-violet-50";
+    case "Region":
+      return "border-white/14 bg-white/[0.06] text-slate-100";
+  }
+}
+
 export function LocationInput({
   label,
   placeholder,
@@ -77,12 +92,15 @@ export function LocationInput({
       />
       {selectedLocation ? (
         <p className="min-h-4 text-xs text-slate-400">
-          {selectedLocation.region ?? selectedLocation.country ?? "Coordinates locked"} •{" "}
-          {selectedLocation.lat.toFixed(3)}, {selectedLocation.lon.toFixed(3)}
+          {selectedLocation.detail ??
+            selectedLocation.region ??
+            selectedLocation.country ??
+            "Coordinates locked"}{" "}
+          • {selectedLocation.lat.toFixed(3)}, {selectedLocation.lon.toFixed(3)}
         </p>
       ) : (
         <p className="min-h-4 text-xs text-slate-500">
-          Select a suggestion so SnowRoute can pin a precise route.
+          Search exact addresses, places, streets, or cities.
         </p>
       )}
       {showDropdown ? (
@@ -117,13 +135,23 @@ export function LocationInput({
                       onSelect(suggestion);
                       setHasFocus(false);
                     }}
-                    className="group flex w-full flex-col gap-1 px-4 py-3 text-left outline-none transition hover:bg-cyan-100/[0.07] focus-visible:bg-cyan-100/[0.09]"
+                    className="group flex w-full flex-col gap-2 px-4 py-3 text-left outline-none transition hover:bg-cyan-100/[0.07] focus-visible:bg-cyan-100/[0.09]"
                   >
-                    <span className="text-sm font-semibold text-slate-50 transition group-hover:text-white">
-                      {suggestion.label}
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="text-sm font-semibold text-slate-50 transition group-hover:text-white">
+                        {suggestion.label}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${getPlaceTypeTone(
+                          suggestion.placeType,
+                        )}`}
+                      >
+                        {suggestion.placeType}
+                      </span>
                     </span>
                     <span className="text-xs text-slate-400">
-                      {[suggestion.region, suggestion.country].filter(Boolean).join(" • ") ||
+                      {suggestion.detail ||
+                        [suggestion.region, suggestion.country].filter(Boolean).join(" • ") ||
                         "Location match"}
                     </span>
                   </button>
