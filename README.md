@@ -179,6 +179,18 @@ If multiple hours are effectively tied, the UI says so instead of pretending the
 
 The chart in `components/departure-time-optimizer.tsx` visualizes safety as `100 - overallScore`, so taller/greener bars mean safer departure windows and lower/orange-red bars mean riskier windows.
 
+## Trip workflow and weather-hold suggestions
+
+The Analyze a Trip experience is deliberately separated into three stages:
+
+1. **Trip details** keeps locations, optional stops, and departure settings together. Departure uses compact time, month, day, and year controls—without a date-picker calendar. The selected departure time is not persisted; each fresh visit defaults to the current day about one hour ahead.
+2. **Analysis** presents the map, route summary, departure comparison, checkpoint table, and timeline only after a route is analyzed.
+3. **Suggestions** opens only when the traveler selects **See suggestions**. It turns sustained High/Severe forecast windows into route-relative weather-hold decision points.
+
+Each suggested hold point is placed at the sampled checkpoint immediately before a flagged window where possible. Its operational hold-likelihood indicator combines the model's peak risk score with forecast visibility, wind gusts, snowfall, and near-freezing precipitation. This percentage is not a crash, closure, or facility-availability probability. It is a conservative planning signal and does not identify verified places to stop; travelers must confirm a legal, open off-road location and current local road conditions.
+
+The guidance is informed by the [National Weather Service winter storm driving advice](https://www.weather.gov/safety/winter-during), including waiting for visibility to improve, and [NHTSA winter driving guidance](https://www.nhtsa.gov/winter-driving-tips), including adjusting the departure around the worst weather and planning longer-trip stops.
+
 ## Testing
 
 Run the unit suite with:

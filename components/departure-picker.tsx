@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 const FORECAST_DAY_COUNT = 15;
 const TIME_STEP_MINUTES = 15;
@@ -29,15 +29,11 @@ function parseDateValue(value: string) {
 
   const date = new Date(year, month - 1, day);
 
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return date;
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
 }
 
 function addDays(date: Date, days: number) {
@@ -46,34 +42,27 @@ function addDays(date: Date, days: number) {
   return nextDate;
 }
 
-function roundUpToStep(minutes: number, step = TIME_STEP_MINUTES) {
-  return Math.min(23 * 60 + 59, Math.ceil(minutes / step) * step);
-}
-
-function getCurrentMinutes() {
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
+function roundUpToStep(minutes: number) {
+  return Math.min(23 * 60 + 45, Math.ceil(minutes / TIME_STEP_MINUTES) * TIME_STEP_MINUTES);
 }
 
 function getMinimumMinutesForDate(dateValue: string) {
-  const today = formatDateInputValue(new Date());
-
-  if (dateValue !== today) {
+  if (dateValue !== formatDateInputValue(new Date())) {
     return 0;
   }
 
-  return roundUpToStep(getCurrentMinutes() + TIME_STEP_MINUTES);
+  const now = new Date();
+  return roundUpToStep(now.getHours() * 60 + now.getMinutes() + TIME_STEP_MINUTES);
 }
 
 function parseLocalDateTime(value: string) {
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
 
   if (!match) {
-    const now = new Date();
-    const minutes = roundUpToStep(getCurrentMinutes() + 60);
+    const date = new Date();
     return {
-      dateValue: formatDateInputValue(now),
-      minutes,
+      dateValue: formatDateInputValue(date),
+      minutes: roundUpToStep(date.getHours() * 60 + date.getMinutes() + 60),
     };
   }
 
@@ -84,78 +73,36 @@ function parseLocalDateTime(value: string) {
 }
 
 function buildLocalDateTimeValue(dateValue: string, minutes: number) {
-  const normalizedMinutes = Math.min(Math.max(minutes, 0), 23 * 60 + 59);
-  const hours = Math.floor(normalizedMinutes / 60);
-  const remainingMinutes = normalizedMinutes % 60;
-
-  return `${dateValue}T${pad(hours)}:${pad(remainingMinutes)}`;
+  const safeMinutes = Math.min(Math.max(minutes, 0), 23 * 60 + 45);
+  return `${dateValue}T${pad(Math.floor(safeMinutes / 60))}:${pad(safeMinutes % 60)}`;
 }
 
 function formatClock(minutes: number) {
   const hours24 = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
+  const minutesPart = minutes % 60;
   const meridiem = hours24 >= 12 ? "PM" : "AM";
   const hours12 = hours24 % 12 || 12;
 
-  return `${hours12}:${pad(remainingMinutes)} ${meridiem}`;
+  return `${hours12}:${pad(minutesPart)} ${meridiem}`;
 }
 
-function parseClockInput(value: string) {
-  const normalized = value.trim().toLowerCase().replace(/\s+/g, "");
-  const match = /^(\d{1,2})(?::?(\d{2}))?(am|pm)?$/.exec(normalized);
-
-  if (!match) {
-    return null;
-  }
-
-  let hours = Number(match[1]);
-  const minutes = match[2] ? Number(match[2]) : 0;
-  const meridiem = match[3];
-
-  if (minutes > 59) {
-    return null;
-  }
-
-  if (meridiem) {
-    if (hours < 1 || hours > 12) {
-      return null;
-    }
-
-    if (meridiem === "am") {
-      hours = hours === 12 ? 0 : hours;
-    } else {
-      hours = hours === 12 ? 12 : hours + 12;
-    }
-  } else if (hours > 23) {
-    return null;
-  }
-
-  return hours * 60 + minutes;
+function formatMonth(monthIndex: number) {
+  return new Intl.DateTimeFormat(undefined, { month: "long" }).format(
+    new Date(2026, monthIndex, 1),
+  );
 }
 
-function formatLongDate(dateValue: string) {
+function formatSelectedDate(dateValue: string) {
   const date = parseDateValue(dateValue);
 
-  if (!date) {
-    return dateValue;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
-function getDayName(date: Date) {
-  return new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date);
-}
-
-function getMonthDay(date: Date) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(date);
+  return date
+    ? new Intl.DateTimeFormat(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(date)
+    : dateValue;
 }
 
 export function DeparturePicker({
@@ -165,261 +112,171 @@ export function DeparturePicker({
   onChange,
 }: DeparturePickerProps) {
   const { dateValue, minutes } = parseLocalDateTime(value);
-  const [dateDraft, setDateDraft] = useState<string | null>(null);
-  const [timeDraft, setTimeDraft] = useState<string | null>(null);
-  const dayOptions = useMemo(() => {
-    const today = new Date();
-
-    return Array.from({ length: FORECAST_DAY_COUNT }, (_, index) => {
-      const date = addDays(today, index);
-
-      return {
-        date,
-        dateValue: formatDateInputValue(date),
-        dayName: index === 0 ? "Today" : index === 1 ? "Tomorrow" : getDayName(date),
-        monthDay: getMonthDay(date),
-      };
-    });
-  }, []);
-  const selectedDate = parseDateValue(dateValue) ?? new Date();
-  const displayedDateValue = dateDraft ?? dateValue;
-  const displayedTimeValue = timeDraft ?? formatClock(minutes);
-  const firstForecastDateValue = dayOptions[0]?.dateValue ?? dateValue;
-  const lastForecastDateValue = dayOptions.at(-1)?.dateValue ?? dateValue;
-  const minimumMinutes = getMinimumMinutesForDate(dateValue);
-  const normalizedMinutes = Math.max(minutes, minimumMinutes);
-  const railValue = Math.min(
-    23 * 60 + 59,
-    Math.max(minimumMinutes, roundUpToStep(normalizedMinutes)),
+  const dateOptions = useMemo(
+    () =>
+      Array.from({ length: FORECAST_DAY_COUNT }, (_, index) => {
+        const date = addDays(new Date(), index);
+        return {
+          dateValue: formatDateInputValue(date),
+          year: date.getFullYear(),
+          month: date.getMonth(),
+          day: date.getDate(),
+        };
+      }),
+    [],
   );
-  const selectedDateLabel = formatLongDate(dateValue);
-  const quickTimes = [
-    { label: "Morning", minutes: 8 * 60 },
-    { label: "Noon", minutes: 12 * 60 },
-    { label: "Afternoon", minutes: 15 * 60 },
-    { label: "Evening", minutes: 18 * 60 },
-    { label: "Late", minutes: 21 * 60 },
-  ];
+  const selectedDate = parseDateValue(dateValue) ?? new Date();
+  const selectedYear = selectedDate.getFullYear();
+  const selectedMonth = selectedDate.getMonth();
+  const selectedDay = selectedDate.getDate();
+  const yearOptions = Array.from(new Set(dateOptions.map((option) => option.year)));
+  const monthOptions = Array.from(
+    new Set(
+      dateOptions
+        .filter((option) => option.year === selectedYear)
+        .map((option) => option.month),
+    ),
+  );
+  const dayOptions = dateOptions.filter(
+    (option) => option.year === selectedYear && option.month === selectedMonth,
+  );
+  const minimumMinutes = getMinimumMinutesForDate(dateValue);
+  const selectedMinutes = Math.max(minutes, minimumMinutes);
+  const timeOptions = Array.from(
+    { length: 24 * (60 / TIME_STEP_MINUTES) },
+    (_, index) => index * TIME_STEP_MINUTES,
+  );
 
   function commit(nextDateValue: string, nextMinutes: number) {
-    const validDate = parseDateValue(nextDateValue);
-
-    if (
-      !validDate ||
-      nextDateValue < firstForecastDateValue ||
-      nextDateValue > lastForecastDateValue
-    ) {
+    if (!dateOptions.some((option) => option.dateValue === nextDateValue)) {
       return;
     }
 
-    const safeMinutes = Math.max(
-      Math.min(nextMinutes, 23 * 60 + 59),
-      getMinimumMinutesForDate(nextDateValue),
+    onChange(
+      buildLocalDateTimeValue(
+        nextDateValue,
+        Math.max(getMinimumMinutesForDate(nextDateValue), nextMinutes),
+      ),
     );
-
-    onChange(buildLocalDateTimeValue(nextDateValue, safeMinutes));
   }
 
-  function handleDateTextChange(nextValue: string) {
-    setDateDraft(nextValue);
-  }
+  function selectYear(year: number) {
+    const nextDate = dateOptions.find(
+      (option) =>
+        option.year === year && option.month === selectedMonth && option.day === selectedDay,
+    ) ?? dateOptions.find((option) => option.year === year);
 
-  function commitDateDraft() {
-    const nextDateDraft = dateDraft ?? dateValue;
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(nextDateDraft)) {
-      setDateDraft(null);
-      commit(nextDateDraft, minutes);
-      return;
+    if (nextDate) {
+      commit(nextDate.dateValue, selectedMinutes);
     }
-
-    setDateDraft(null);
   }
 
-  function handleTimeTextChange(nextValue: string) {
-    setTimeDraft(nextValue);
-  }
+  function selectMonth(month: number) {
+    const nextDate = dateOptions.find(
+      (option) =>
+        option.year === selectedYear && option.month === month && option.day === selectedDay,
+    ) ??
+      dateOptions.find(
+        (option) => option.year === selectedYear && option.month === month,
+      );
 
-  function commitTimeDraft() {
-    const parsedMinutes = parseClockInput(timeDraft ?? formatClock(minutes));
-
-    if (parsedMinutes !== null) {
-      setTimeDraft(null);
-      commit(dateValue, parsedMinutes);
-      return;
+    if (nextDate) {
+      commit(nextDate.dateValue, selectedMinutes);
     }
-
-    setTimeDraft(null);
-  }
-
-  function nudgeMinutes(amount: number) {
-    commit(dateValue, minutes + amount);
   }
 
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
-            Departure Time
+            Departure
           </p>
-          <p className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
-            {selectedDateLabel} at {formatClock(minutes)}
+          <p className="mt-1 text-base font-semibold text-white">
+            {formatSelectedDate(dateValue)} at {formatClock(selectedMinutes)}
           </p>
         </div>
-        <span className="max-w-full truncate rounded-lg border border-cyan-100/15 bg-cyan-300/8 px-3 py-2 text-xs font-medium text-cyan-50 sm:shrink-0">
+        <span className="max-w-full truncate rounded-lg border border-cyan-100/15 bg-cyan-300/8 px-3 py-1.5 text-xs font-medium text-cyan-50">
           {timeZone}
         </span>
       </div>
 
-      <div className="mt-5 grid min-w-0 gap-5">
-        <div className="min-w-0 space-y-3">
-          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,12rem)] sm:items-center sm:justify-between">
-            <label
-              htmlFor="departure-date"
-              className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300"
-            >
-              Date
-            </label>
-            <input
-              id="departure-date"
-              type="text"
-              inputMode="numeric"
-              value={displayedDateValue}
-              aria-describedby="departure-date-availability"
-              onChange={(event) => handleDateTextChange(event.target.value)}
-              onBlur={commitDateDraft}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  commitDateDraft();
-                }
-              }}
-              disabled={disabled}
-              className="h-10 w-full rounded-lg border border-white/12 bg-black/15 px-3 text-left text-sm font-semibold text-slate-100 outline-none transition placeholder:text-slate-400 focus:border-cyan-200/60 focus:bg-cyan-300/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
-            />
-          </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+          Time
+          <select
+            value={selectedMinutes}
+            disabled={disabled}
+            onChange={(event) => commit(dateValue, Number(event.target.value))}
+            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {timeOptions.map((option) => (
+              <option key={option} value={option} disabled={option < minimumMinutes}>
+                {formatClock(option)}
+              </option>
+            ))}
+          </select>
+        </label>
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(7.25rem,1fr))] gap-2">
-            {dayOptions.map((option) => {
-              const isSelected = option.dateValue === dateValue;
+        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+          Month
+          <select
+            value={selectedMonth}
+            disabled={disabled}
+            onChange={(event) => selectMonth(Number(event.target.value))}
+            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {monthOptions.map((month) => (
+              <option key={month} value={month}>
+                {formatMonth(month)}
+              </option>
+            ))}
+          </select>
+        </label>
 
-              return (
-                <button
-                  key={option.dateValue}
-                  type="button"
-                  disabled={disabled}
-                  aria-pressed={isSelected}
-                  onClick={() => commit(option.dateValue, normalizedMinutes)}
-                  className={`min-h-20 rounded-xl border px-3 py-3 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200/55 disabled:cursor-not-allowed disabled:opacity-60 ${
-                    isSelected
-                      ? "border-cyan-200/55 bg-cyan-300/[0.16] shadow-[0_0_0_4px_rgba(125,211,252,0.08)]"
-                      : "border-white/10 bg-white/[0.025] hover:border-cyan-100/25 hover:bg-cyan-300/[0.07]"
-                  }`}
-                >
-                  <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    {option.dayName}
-                  </span>
-                  <span className="mt-1 block text-sm font-semibold text-white">
-                    {option.monthDay}
-                  </span>
-                </button>
+        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+          Day
+          <select
+            value={selectedDay}
+            disabled={disabled}
+            onChange={(event) => {
+              const nextDate = dayOptions.find(
+                (option) => option.day === Number(event.target.value),
               );
-            })}
-          </div>
-        </div>
+              if (nextDate) {
+                commit(nextDate.dateValue, selectedMinutes);
+              }
+            }}
+            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {dayOptions.map((option) => (
+              <option key={option.dateValue} value={option.day}>
+                {option.day}
+              </option>
+            ))}
+          </select>
+        </label>
 
-        <div className="min-w-0 space-y-4">
-          <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] gap-2">
-            <button
-              type="button"
-              disabled={disabled || minutes <= minimumMinutes}
-              onClick={() => nudgeMinutes(-TIME_STEP_MINUTES)}
-              className="flex h-14 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-lg font-semibold text-slate-100 transition hover:border-cyan-100/35 hover:bg-cyan-300/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
-              aria-label="Move departure time 15 minutes earlier"
-            >
-              -
-            </button>
-            <label className="space-y-2" htmlFor="departure-clock-time">
-              <span className="sr-only">Time</span>
-              <input
-                id="departure-clock-time"
-                type="text"
-                inputMode="text"
-                value={displayedTimeValue}
-                onChange={(event) => handleTimeTextChange(event.target.value)}
-                onBlur={commitTimeDraft}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    commitTimeDraft();
-                  }
-                }}
-                disabled={disabled}
-                className="h-14 w-full min-w-0 rounded-xl border border-cyan-200/25 bg-[#0d1b25] px-4 text-center text-xl font-semibold text-slate-50 outline-none transition duration-200 focus:border-cyan-100/70 focus:bg-cyan-200/[0.08] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={disabled || minutes >= 23 * 60 + 59}
-              onClick={() => nudgeMinutes(TIME_STEP_MINUTES)}
-              className="flex h-14 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-lg font-semibold text-slate-100 transition hover:border-cyan-100/35 hover:bg-cyan-300/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
-              aria-label="Move departure time 15 minutes later"
-            >
-              +
-            </button>
-          </div>
-
-          <div className="rounded-xl border border-white/10 bg-black/10 px-4 py-4">
-            <input
-              type="range"
-              min={minimumMinutes}
-              max={23 * 60 + 59}
-              step={TIME_STEP_MINUTES}
-              value={railValue}
-              disabled={disabled}
-              onChange={(event) => commit(dateValue, Number(event.target.value))}
-              aria-label="Departure time"
-              className="departure-time-range h-3 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <div className="mt-3 flex justify-between text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-              <span>12 AM</span>
-              <span>6 AM</span>
-              <span>12 PM</span>
-              <span>6 PM</span>
-              <span>11 PM</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2">
-            {quickTimes.map((preset) => {
-              const isActive = Math.abs(minutes - preset.minutes) < TIME_STEP_MINUTES;
-              const isDisabled = disabled || preset.minutes < minimumMinutes;
-
-              return (
-                <button
-                  key={preset.label}
-                  type="button"
-                  disabled={isDisabled}
-                  aria-pressed={isActive}
-                  onClick={() => commit(dateValue, preset.minutes)}
-                  className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45 ${
-                    isActive
-                      ? "border-cyan-100/70 bg-cyan-300/[0.2] text-cyan-50 shadow-[0_0_0_3px_rgba(125,211,252,0.1)]"
-                      : "border-white/10 bg-white/[0.025] text-slate-300 hover:border-cyan-100/25 hover:bg-cyan-300/[0.07]"
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <p id="departure-date-availability" className="text-xs leading-5 text-slate-300">
-            Forecast dates before today or after {getMonthDay(dayOptions.at(-1)?.date ?? selectedDate)} are unavailable.
-          </p>
-        </div>
+        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+          Year
+          <select
+            value={selectedYear}
+            disabled={disabled}
+            onChange={(event) => selectYear(Number(event.target.value))}
+            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-    </div>
+
+      <p className="mt-3 text-xs leading-5 text-slate-400">
+        Choose from the next 15 forecast days. Today&apos;s passed times are unavailable.
+      </p>
+    </section>
   );
 }
