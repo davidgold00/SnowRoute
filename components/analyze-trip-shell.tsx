@@ -4,6 +4,7 @@ import { fromZonedTime } from "date-fns-tz";
 import dynamic from "next/dynamic";
 import { startTransition, useEffect, useRef, useState } from "react";
 
+import { HowItWorks } from "@/components/how-it-works";
 import { InfoTooltip } from "@/components/info-tooltip";
 import { RouteForm, type EditableStop } from "@/components/route-form";
 import { SegmentTable } from "@/components/segment-table";
@@ -606,6 +607,26 @@ export function AnalyzeTripShell() {
 
           {activeStage === "strategy" && analysis ? <StrategySuggestions analysis={analysis} /> : null}
         </main>
+
+        <div className="mt-6 space-y-4">
+          <HowItWorks />
+
+          <footer className="rounded-2xl border border-amber-200/15 bg-amber-200/[0.045] px-5 py-4 text-xs leading-5 text-slate-300 sm:px-6">
+            <p className="font-semibold uppercase tracking-[0.2em] text-amber-100/80">
+              Important safety notice
+            </p>
+            <p className="mt-2 max-w-5xl">
+              SnowRoute is an informational planning aid that provides forecast-based
+              suggestions. It is not an emergency service, road-closure authority,
+              meteorological guarantee, or substitute for your judgment. SnowRoute and
+              its operators are not liable for accidents, injuries, property damage,
+              delays, losses, or other consequences arising from travel decisions made
+              using this service. Check official warnings and current road conditions,
+              follow local instructions, and proceed only when you determine that travel
+              is safe.
+            </p>
+          </footer>
+        </div>
       </div>
     </div>
   );
