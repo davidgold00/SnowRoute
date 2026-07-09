@@ -36,6 +36,10 @@ export type AnalyzeRouteInput = z.infer<typeof analyzeRouteInputSchema>;
 
 export type RiskLabel = "Low" | "Moderate" | "High" | "Severe";
 
+export type TripDecisionLevel = "GO" | "CAUTION" | "DELAY" | "HOLD" | "AVOID";
+
+export type ForecastConfidence = "High" | "Medium" | "Low";
+
 export type Recommendation =
   | "Safe"
   | "Use caution"
@@ -98,6 +102,10 @@ export type HazardWindow = {
   dominantFactors: string[];
   guidance: RiskGuidance;
   sampleIds: string[];
+  startSampleIndex: number;
+  endSampleIndex: number;
+  approximateLocationLabel: string;
+  summary: string;
 };
 
 export type RouteSegment = {
@@ -157,6 +165,59 @@ export type DepartureOptimization = {
   options: DepartureTimeOption[];
 };
 
+export type DecisionDangerWindow = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  approximateLocationLabel: string;
+  segmentIndexStart: number;
+  segmentIndexEnd: number;
+  maxRisk: Extract<RiskLabel, "High" | "Severe">;
+  hazardTypes: string[];
+  summary: string;
+};
+
+export type HoldRecommendation = {
+  shouldHold: boolean;
+  holdBeforeLocationLabel: string;
+  holdBeforeSegmentIndex: number;
+  estimatedArrivalTime: string;
+  dangerBeginsAround: string;
+  reason: string;
+  resumeWindow: string | null;
+  riskIfContinuing: Extract<RiskLabel, "High" | "Severe">;
+};
+
+export type SaferDepartureWindow = {
+  id: string;
+  departureTimeUtc: string;
+  departureTime: string;
+  decision: TripDecisionLevel;
+  overallRisk: RiskLabel;
+  worstSegmentRisk: RiskLabel;
+  summary: string;
+  improvementComparedToSelected: string | null;
+};
+
+export type TripDecision = {
+  decision: TripDecisionLevel;
+  decisionLabel: string;
+  decisionSummary: string;
+  confidence: ForecastConfidence;
+  confidenceReasons: string[];
+  overallRisk: RiskLabel;
+  worstSegmentRisk: RiskLabel;
+  worstSegmentLocationLabel: string;
+  worstSegmentArrivalTime: string;
+  mainHazards: string[];
+  dangerWindows: DecisionDangerWindow[];
+  holdRecommendation: HoldRecommendation | null;
+  saferDepartureWindows: SaferDepartureWindow[];
+  explanationBullets: string[];
+  dataQualityNotes: string[];
+  safetyDisclaimer: string;
+};
+
 export type RouteAnalysisResponse = {
   route: {
     coordinates: Coordinate[];
@@ -168,4 +229,5 @@ export type RouteAnalysisResponse = {
   hazardWindows: HazardWindow[];
   summary: RouteSummary;
   departureOptimization: DepartureOptimization;
+  tripDecision: TripDecision;
 };

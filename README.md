@@ -1,6 +1,6 @@
 # SnowRoute
 
-SnowRoute is a production-grade winter driving risk analyzer built with Next.js App Router. It evaluates a route across both space and time: the app samples checkpoints along the drive, estimates the ETA for each checkpoint, fetches forecast data for that specific place and time, and produces a transparent winter driving risk score for every segment.
+SnowRoute is a winter road-trip decision advisor built with Next.js App Router. It evaluates a route across both space and time: the app samples checkpoints along the drive, estimates the ETA for each checkpoint, fetches forecast data for that specific place and time, and produces a transparent drive, caution, delay, hold, or avoid recommendation.
 
 ## Stack
 
@@ -79,6 +79,18 @@ Open-Meteo is the primary weather source because it provides a useful hourly for
 ## Risk Model
 
 SnowRoute uses an explainable 0-100 winter-driving score for every route checkpoint. The model is intentionally conservative around hazards that can make an ordinary passenger-vehicle trip unsafe quickly: freezing rain, near-whiteout visibility, snow plus wind, severe storm codes, and night driving.
+
+### Trip decision layer
+
+On top of checkpoint scoring, `lib/decision-engine.ts` turns the route into a decision-first briefing:
+
+- `GO`: forecast-based winter risk appears manageable; still check official road conditions.
+- `CAUTION`: isolated winter trouble spots are expected.
+- `DELAY`: the selected timing is high risk and a materially lower-risk hourly option was found.
+- `HOLD`: early checkpoints are more manageable but a later High/Severe window has a route-relative pre-danger decision point.
+- `AVOID`: severe or sustained risk has no clearly better departure window.
+
+The decision engine also reports forecast confidence, route-relative danger windows, main hazards, safer departure windows, data-quality notes, and a safety disclaimer. It never treats a route-relative checkpoint as a verified stopping facility.
 
 The scoring logic lives in `lib/risk.ts`. The response shape for the detailed explanations lives in `lib/types.ts`, and the risk tests live in `tests/risk.test.ts`.
 
@@ -210,8 +222,9 @@ Covered areas:
 
 ## Future Improvements
 
-- add alternate-route comparison and side-by-side recommendation deltas
-- persist recent analyses for trip planning workflows
-- add radar overlays and road-condition feeds where available
-- introduce saved thresholds or driver profiles for commercial fleets
-- batch weather requests further for extremely long routes and premium quotas
+- live DOT road closures, chain laws, plow status, and official alert feeds
+- mountain-pass and route-elevation context
+- alternate-route comparison with side-by-side decision deltas
+- user vehicle, tire, and experience profiles that never downgrade ice or severe-visibility hazards
+- shareable public trip decision summaries
+- further weather batching for extremely long routes and premium quotas

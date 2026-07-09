@@ -117,7 +117,7 @@ describe("risk scoring", () => {
       pointTimeZone: "UTC",
       weather: createWeather({
         visibilityKm: 0.8,
-        windGustKph: 62,
+        windGustKph: 70,
         weatherCode: 45,
       }),
     });
@@ -130,16 +130,16 @@ describe("risk scoring", () => {
     ).toBe(true);
   });
 
-  it("adds a night-driving penalty outside local daytime hours", () => {
+  it("adds a night-driving penalty when winter precipitation is present", () => {
     const daytimeRisk = scoreRouteSampleRisk({
       etaUtc: "2026-01-05T12:00:00.000Z",
       pointTimeZone: "UTC",
-      weather: createWeather(),
+      weather: createWeather({ snowfallCm: 0.5, weatherCode: 71 }),
     });
     const overnightRisk = scoreRouteSampleRisk({
       etaUtc: "2026-01-05T23:00:00.000Z",
       pointTimeZone: "UTC",
-      weather: createWeather(),
+      weather: createWeather({ snowfallCm: 0.5, weatherCode: 71 }),
     });
 
     expect(overnightRisk.score).toBeGreaterThan(daytimeRisk.score);
@@ -176,11 +176,14 @@ describe("risk scoring", () => {
       }),
     });
 
-    expect(risk.score).toBeGreaterThanOrEqual(90);
+    expect(risk.score).toBeGreaterThanOrEqual(75);
     expect(risk.label).toBe("Severe");
-    expect(risk.explanationFactors).toContain(
-      "Snow, wind, and poor visibility can create whiteout travel",
-    );
+    expect(risk.explanationFactors).toContain("Near-whiteout or dense fog visibility");
+    expect(
+      risk.factors.some((factor) =>
+        factor.label.includes("Wind and snow can create blowing snow"),
+      ),
+    ).toBe(true);
   });
 });
 

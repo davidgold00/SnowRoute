@@ -1,11 +1,17 @@
 "use client";
 
-import { fromZonedTime } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import dynamic from "next/dynamic";
 import { startTransition, useEffect, useRef, useState } from "react";
 
 import { HowItWorks } from "@/components/how-it-works";
-import { InfoTooltip } from "@/components/info-tooltip";
+import { DecisionCard } from "@/components/decision-card";
+import {
+  DangerWindows,
+  HoldGuidance,
+  SaferDepartureCard,
+  WinterLimitations,
+} from "@/components/decision-guidance";
 import { RouteForm, type EditableStop } from "@/components/route-form";
 import { SegmentTable } from "@/components/segment-table";
 import { StrategySuggestions } from "@/components/strategy-suggestions";
@@ -183,10 +189,13 @@ export function AnalyzeTripShell() {
     saveTripDraft({ origin, destination, waypoints, timeZone, timeZoneManuallySet });
   }, [destination, origin, timeZone, timeZoneManuallySet, waypoints]);
 
-  function focusStageContent() {
+  function focusStageContent(targetId?: string) {
     window.requestAnimationFrame(() => {
-      stageContentRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-      stageContentRef.current?.focus({ preventScroll: true });
+      const target = targetId ? document.getElementById(targetId) : stageContentRef.current;
+      target?.scrollIntoView({ block: "start", behavior: "smooth" });
+      if (target instanceof HTMLElement) {
+        target.focus({ preventScroll: true });
+      }
     });
   }
 
@@ -196,7 +205,7 @@ export function AnalyzeTripShell() {
     }
 
     setActiveStage(stage);
-    focusStageContent();
+    focusStageContent(stage === "analysis" ? "decision" : undefined);
   }
 
   function handleStopChange(
@@ -262,6 +271,14 @@ export function AnalyzeTripShell() {
     setActiveStage("input");
   }
 
+  function handleUseSuggestedDeparture(departureTimeUtc: string) {
+    setDepartureTimeLocal(
+      formatInTimeZone(new Date(departureTimeUtc), timeZone, "yyyy-MM-dd'T'HH:mm"),
+    );
+    setAnalysisError(null);
+    selectStage("input");
+  }
+
   async function handleAnalyze(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -325,7 +342,7 @@ export function AnalyzeTripShell() {
         setActiveSampleId(highestRiskSample?.id ?? null);
         setActiveStage("analysis");
       });
-      focusStageContent();
+      focusStageContent("decision");
     } catch (error) {
       if (!abortController.signal.aborted) {
         setAnalysisError(
@@ -344,34 +361,6 @@ export function AnalyzeTripShell() {
     origin.selected?.label && destination.selected?.label
       ? `${origin.selected.label} to ${destination.selected.label}`
       : "Latest analyzed route";
-  const analysisSnapshot = analysis
-    ? [
-        {
-          label: "Overall score",
-          value: `${analysis.summary.overallScore}/100`,
-          detail: `${analysis.summary.overallLabel} trip risk`,
-          help: "A blended 0–100 winter-driving risk score. Higher numbers mean more snow, ice, low visibility, wind, darkness, or forecast uncertainty along the route.",
-        },
-        {
-          label: "Worst segment",
-          value: `${analysis.summary.maxScore}/100`,
-          detail: "Highest checkpoint risk",
-          help: "The highest risk score found at any checkpoint or route segment.",
-        },
-        {
-          label: "Hazard windows",
-          value: analysis.hazardWindows.length.toString(),
-          detail: analysis.hazardWindows.length ? "Time blocks flagged" : "None sustained",
-          help: "Nearby high-risk checkpoints are grouped into practical periods of concern.",
-        },
-        {
-          label: "Checkpoints",
-          value: analysis.samples.length.toString(),
-          detail: "ETA-matched forecast points",
-          help: "Each point is paired with the nearest forecast hour for its estimated arrival time.",
-        },
-      ]
-    : [];
   const stages: Array<{ id: TripStage; number: string; label: string; detail: string }> = [
     { id: "input", number: "01", label: "Trip details", detail: "Route, stops, departure" },
     { id: "analysis", number: "02", label: "Analysis", detail: "Route risk and timing" },
@@ -385,11 +374,11 @@ export function AnalyzeTripShell() {
           <div className="max-w-3xl space-y-3">
             <p className="eyebrow">Analyze a trip</p>
             <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              Winter travel, organized.
+              Know whether this winter drive is smart to start.
             </h1>
             <p className="max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Set the trip first, review the route analysis second, then open a formal
-              weather-hold strategy only when you need it.
+              SnowRoute matches forecast conditions to your arrival time, then gives a
+              clear drive, delay, hold, or avoid recommendation.
             </p>
           </div>
         </header>
@@ -549,8 +538,7 @@ export function AnalyzeTripShell() {
                       {latestRouteName}
                     </h2>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                      Review the forecast-matched route risk, then open the strategy
-                      briefing if you want planned weather-hold decision points.
+                      Departure: {departureTimeLocal.replace("T", " at ")} • {timeZone}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-3">
@@ -570,38 +558,49 @@ export function AnalyzeTripShell() {
                     </button>
                   </div>
                 </div>
+              </section>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {analysisSnapshot.map((item) => (
-                    <div key={item.label} className="metric-card rounded-xl p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-                          {item.label}
-                        </p>
-                        <InfoTooltip label={`Explain ${item.label}`}>{item.help}</InfoTooltip>
-                      </div>
-                      <p className="mt-3 text-3xl font-semibold text-white">{item.value}</p>
-                      <p className="mt-2 text-sm text-slate-300">{item.detail}</p>
-                    </div>
-                  ))}
+              <DecisionCard decision={analysis.tripDecision} />
+
+              <SaferDepartureCard
+                decision={analysis.tripDecision}
+                onUseDeparture={handleUseSuggestedDeparture}
+              />
+
+              <DangerWindows decision={analysis.tripDecision} />
+
+              <HoldGuidance decision={analysis.tripDecision} />
+
+              <section id="route-details" className="scroll-mt-24 space-y-6">
+                <div>
+                  <p className="eyebrow">Route details</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                    Forecast evidence across the drive
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                    The map supports the decision above. Use the checkpoint list and timeline
+                    to inspect where the score changes and why.
+                  </p>
+                </div>
+
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.68fr)]">
+                  <div className="min-w-0"><RouteMap analysis={analysis} activeSampleId={activeSampleId} onSelectSample={setActiveSampleId} /></div>
+                  <div className="min-w-0"><SummaryPanel analysis={analysis} /></div>
+                </div>
+
+                <DepartureTimeOptimizer optimization={analysis.departureOptimization} />
+
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+                  <SegmentTable
+                    samples={analysis.samples}
+                    activeSampleId={activeSampleId}
+                    onSelectSample={setActiveSampleId}
+                  />
+                  <RiskTimeline samples={analysis.samples} activeSampleId={activeSampleId} />
                 </div>
               </section>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.68fr)]">
-                <div className="min-w-0"><RouteMap analysis={analysis} activeSampleId={activeSampleId} onSelectSample={setActiveSampleId} /></div>
-                <div className="min-w-0"><SummaryPanel analysis={analysis} /></div>
-              </div>
-
-              <DepartureTimeOptimizer optimization={analysis.departureOptimization} />
-
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
-                <SegmentTable
-                  samples={analysis.samples}
-                  activeSampleId={activeSampleId}
-                  onSelectSample={setActiveSampleId}
-                />
-                <RiskTimeline samples={analysis.samples} activeSampleId={activeSampleId} />
-              </div>
+              <WinterLimitations decision={analysis.tripDecision} />
             </section>
           ) : null}
 

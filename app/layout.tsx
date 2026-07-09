@@ -7,8 +7,9 @@ import { Snowfall } from "@/components/snowfall";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SnowRoute | Winter Trip Planning",
-  description: "Plan winter drives with route-level weather risk analysis.",
+  title: "SnowRoute | Winter Road Trip Drive, Delay & Hold Advisor",
+  description:
+    "Analyze a winter road trip by arrival time, find danger windows, and get a clear drive, delay, hold, or avoid recommendation.",
 };
 
 export default function RootLayout({

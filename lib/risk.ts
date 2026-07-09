@@ -28,24 +28,44 @@ function scaleToMax(value: number, min: number, max: number, cap: number) {
   return ((value - min) / (max - min)) * cap;
 }
 
-function scaleInverse(value: number, min: number, max: number, cap: number) {
-  if (value >= max) {
-    return 0;
-  }
-
-  if (value <= min) {
-    return cap;
-  }
-
-  return ((max - value) / (max - min)) * cap;
-}
-
 function isSnowCode(code: number | null) {
   return code !== null && [71, 73, 75, 77, 85, 86].includes(code);
 }
 
 function isFreezingPrecipitationCode(code: number | null) {
   return code !== null && [56, 57, 66, 67].includes(code);
+}
+
+function getVisibilityContribution(visibilityKm: number) {
+  if (visibilityKm <= 0.4) {
+    return 40;
+  }
+
+  if (visibilityKm <= 0.8) {
+    return 30;
+  }
+
+  if (visibilityKm <= 1.6) {
+    return 20;
+  }
+
+  if (visibilityKm < 4.8) {
+    return 10;
+  }
+
+  return 0;
+}
+
+function getWindContribution(windKph: number) {
+  if (windKph >= 80) {
+    return 28;
+  }
+
+  if (windKph >= 64) {
+    return 18;
+  }
+
+  return windKph >= 48 ? 10 : 0;
 }
 
 function getHazardCodeContribution(code: number | null) {
@@ -156,14 +176,14 @@ export function scoreRouteSampleRisk({
   if (snowSignal) {
     const snowContribution = Math.round(
       Math.max(
-        scaleToMax(snowfallCm, 0.15, 3.5, 34),
+        scaleToMax(snowfallCm, 0.15, 4, 45),
         isSnowCode(weather.weatherCode) ? 12 : 0,
       ),
     );
     factors.push({
       key: "snowfall",
       label:
-        snowfallCm >= 3.5
+        snowfallCm >= 4
           ? "Intense snowfall can overwhelm plowing and lane tracking"
           : snowfallCm >= 2
             ? "Heavy snowfall expected"
@@ -177,23 +197,27 @@ export function scoreRouteSampleRisk({
   if (
     typeof temperatureC === "number" &&
     (precipitationMm > 0.1 || isFreezingPrecipitationCode(weather.weatherCode)) &&
-    temperatureC >= -3 &&
-    temperatureC <= 1
+    temperatureC >= -6 &&
+    temperatureC <= 2
   ) {
-    const temperatureProximity = 1 - Math.min(Math.abs(temperatureC + 0.5) / 3.5, 1);
+    const temperatureProximity = 1 - Math.min(Math.abs(temperatureC - 0.5) / 6.5, 1);
     const precipitationIntensity = Math.min(Math.max(precipitationMm, 0.4) / 3, 1);
     const icingContribution = Math.round(
-      12 + temperatureProximity * 10 + precipitationIntensity * 10,
+      15 + temperatureProximity * 10 + precipitationIntensity * 10,
     );
 
     factors.push({
       key: "icing",
       label: "Temperature near freezing increases ice risk",
-      contribution: clamp(icingContribution, 0, 32),
+      contribution: clamp(icingContribution, 0, 35),
     });
   }
 
-  if (typeof temperatureC === "number" && temperatureC < 0) {
+  if (
+    typeof temperatureC === "number" &&
+    temperatureC < 0 &&
+    (snowSignal || precipitationMm > 0.1)
+  ) {
     factors.push({
       key: "temperature",
       label:
@@ -204,7 +228,7 @@ export function scoreRouteSampleRisk({
     });
   }
 
-  if (typeof visibilityKm === "number" && visibilityKm < 8) {
+  if (typeof visibilityKm === "number" && visibilityKm < 4.8) {
     factors.push({
       key: "visibility",
       label:
@@ -213,21 +237,29 @@ export function scoreRouteSampleRisk({
           : visibilityKm < 1.5
             ? "Low visibility conditions"
             : "Reduced visibility expected",
-      contribution: Math.round(scaleInverse(visibilityKm, 0.4, 8, 28)),
+      contribution: getVisibilityContribution(visibilityKm),
     });
   }
 
-  if (windMetric >= 35) {
+  if (windMetric >= 48) {
     factors.push({
       key: "wind",
       label:
-        windMetric >= 70
+        windMetric >= 80
           ? "Damaging gusts can push vehicles out of lane"
-          : windMetric >= 55
+          : windMetric >= 64
           ? "Strong wind gusts could destabilize travel"
           : "Windy conditions may affect control",
-      contribution: Math.round(scaleToMax(windMetric, 35, 90, 22)),
+      contribution: getWindContribution(windMetric),
     });
+
+    if (snowSignal) {
+      factors.push({
+        key: "wind-snow",
+        label: "Wind and snow can create blowing snow and sudden visibility drops",
+        contribution: 10,
+      });
+    }
   }
 
   const hazardCode = getHazardCodeContribution(weather.weatherCode);
@@ -259,15 +291,15 @@ export function scoreRouteSampleRisk({
     });
   }
 
-  if (snowSignal && typeof visibilityKm === "number" && visibilityKm <= 0.8 && windMetric >= 45) {
+  if (snowSignal && typeof visibilityKm === "number" && visibilityKm <= 0.8 && windMetric >= 48) {
     scoreFloors.push({
       key: "critical-combination",
       label: "Snow, wind, and poor visibility can create whiteout travel",
-      contribution: windMetric >= 56 && visibilityKm <= 0.4 ? 90 : 75,
+      contribution: windMetric >= 64 && visibilityKm <= 0.4 ? 90 : 75,
     });
   }
 
-  if (snowSignal && windMetric >= 70) {
+  if (snowSignal && windMetric >= 80) {
     scoreFloors.push({
       key: "critical-combination",
       label: "Snow with damaging gusts can cause drifting and sudden lane loss",
@@ -288,11 +320,21 @@ export function scoreRouteSampleRisk({
     10,
   );
 
-  if (Number.isFinite(localHour) && (localHour < 7 || localHour >= 19)) {
+  const winterPrecipitation =
+    snowSignal ||
+    precipitationMm > 0.1 ||
+    isFreezingPrecipitationCode(weather.weatherCode);
+  const preNightContribution = factors.reduce((total, factor) => total + factor.contribution, 0);
+
+  if (
+    Number.isFinite(localHour) &&
+    (localHour < 7 || localHour >= 19) &&
+    (winterPrecipitation || preNightContribution >= 25)
+  ) {
     factors.push({
       key: "night",
       label: "Night driving lowers visibility and reaction time",
-      contribution: 6,
+      contribution: winterPrecipitation ? 8 : 12,
     });
   }
 
@@ -302,6 +344,18 @@ export function scoreRouteSampleRisk({
   const baseScore = Math.round(
     sortedFactors.reduce((total, factor) => total + factor.contribution, 0),
   );
+  const substantialHazardCount = sortedFactors.filter(
+    (factor) => factor.key !== "night" && factor.contribution >= 10,
+  ).length;
+
+  if (substantialHazardCount >= 3) {
+    scoreFloors.push({
+      key: "critical-combination",
+      label: "Multiple winter hazards are compounding on this segment",
+      contribution: 50,
+    });
+  }
+
   const strongestFloor = scoreFloors.sort(
     (left, right) => right.contribution - left.contribution,
   )[0];
@@ -455,6 +509,8 @@ export function buildHazardWindows(
     const windowSamples = samples.slice(windowStart, windowEnd + 1);
     const maxScore = Math.max(...windowSamples.map((sample) => sample.score));
     const label = maxScore >= 75 ? "Severe" : "High";
+    const dominantFactors = selectDominantFactors(windowSamples);
+    const approximateLocationLabel = `near route km ${windowSamples[0].distanceKm.toFixed(0)}`;
     windows.push({
       id: `hazard-${windows.length + 1}`,
       startEtaUtc: windowSamples[0].etaUtc,
@@ -471,9 +527,13 @@ export function buildHazardWindows(
       ),
       maxScore,
       label,
-      dominantFactors: selectDominantFactors(windowSamples),
+      dominantFactors,
       guidance: buildRiskGuidance(label, maxScore, selectDominantFactorDetails(windowSamples)),
       sampleIds: windowSamples.map((sample) => sample.id),
+      startSampleIndex: windowStart,
+      endSampleIndex: windowEnd,
+      approximateLocationLabel,
+      summary: `${label} winter risk ${approximateLocationLabel} from ${dominantFactors.slice(0, 2).join(" and ").toLowerCase() || "stacked winter hazards"}.`,
     });
   };
 

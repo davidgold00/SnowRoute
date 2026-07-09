@@ -11,6 +11,18 @@ function formatValue(value: number | null, suffix: string, digits = 0) {
   return `${value.toFixed(digits)}${suffix}`;
 }
 
+function formatForecastMatch(sample: RouteSample) {
+  if (sample.weather.source === "exact") {
+    return "Forecast matched to ETA";
+  }
+
+  if (sample.weather.source === "nearest") {
+    return `Nearest forecast hour${sample.weather.matchDistanceMinutes ? ` (${sample.weather.matchDistanceMinutes} min from ETA)` : ""}`;
+  }
+
+  return "Forecast unavailable for this checkpoint";
+}
+
 export function SegmentTable({
   samples,
   activeSampleId,
@@ -89,6 +101,9 @@ export function SegmentTable({
                       <div className="mt-1 text-xs text-slate-400">
                         {sample.explanationFactors[0] ?? "No major hazard signal detected"}
                       </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {formatForecastMatch(sample)}
+                      </div>
                       {sample.label !== "Low" ? (
                         <div className="mt-3 max-w-md rounded-lg border border-white/10 bg-white/[0.025] p-3">
                           <p className="text-xs font-semibold text-slate-200">
@@ -152,6 +167,9 @@ export function SegmentTable({
                 <p className="mt-2 text-sm leading-6 text-slate-300">
                   {sample.weather.condition} •{" "}
                   {sample.explanationFactors[0] ?? "No major hazard signal detected"}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  {formatForecastMatch(sample)}
                 </p>
               </button>
             );

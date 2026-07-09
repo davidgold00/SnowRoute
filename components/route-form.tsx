@@ -80,13 +80,14 @@ export function RouteForm({
       <div className="route-builder-header flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
-            Step 1 · Trip details
+            Step 1 · Winter drive check
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-            Plan your trip
+            Check a winter drive before you leave
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-            Lock in your start, destination, optional stops, and intended departure.
+            SnowRoute estimates the conditions you&apos;ll meet at each part of the route, then
+            recommends whether to go, delay, hold, or avoid the selected timing.
           </p>
         </div>
         <span
@@ -222,7 +223,8 @@ export function RouteForm({
             </button>
           </div>
           <p className="text-xs leading-5 text-slate-400">
-            SnowRoute matches forecast conditions to each route checkpoint&apos;s estimated arrival time.
+            SnowRoute matches forecast conditions to each route checkpoint&apos;s estimated arrival
+            time, then explains the winter hazards behind its recommendation.
           </p>
         </div>
       </section>

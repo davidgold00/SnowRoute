@@ -1,6 +1,7 @@
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 import { buildDepartureOptimization } from "@/lib/departure-optimization";
+import { buildTripDecision } from "@/lib/decision-engine";
 import { decodePolyline } from "@/lib/polyline";
 import { buildHazardWindows, buildTripSummary, scoreRouteSampleRisk } from "@/lib/risk";
 import { getRouteDirections } from "@/lib/routing";
@@ -208,6 +209,12 @@ export async function analyzeRoute(input: AnalyzeRouteInput): Promise<RouteAnaly
     sampledGroups: departureSampleGroups,
     weatherMatches: departureWeatherMatches,
   });
+  const tripDecision = buildTripDecision({
+    samples,
+    hazardWindows,
+    summary,
+    departureOptimization,
+  });
 
   return {
     route: {
@@ -220,5 +227,6 @@ export async function analyzeRoute(input: AnalyzeRouteInput): Promise<RouteAnaly
     hazardWindows,
     summary,
     departureOptimization,
+    tripDecision,
   };
 }
