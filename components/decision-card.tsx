@@ -25,10 +25,10 @@ function confidenceTone(confidence: TripDecision["confidence"]) {
 
 export function DecisionCard({ decision }: { decision: TripDecision }) {
   return (
-    <section id="decision" className="glass-panel scroll-mt-24 rounded-2xl p-5 sm:p-6 lg:p-7">
+    <section id="decision" tabIndex={-1} className="glass-panel scroll-mt-24 rounded-2xl p-5 outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 sm:p-6 lg:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-3xl">
-          <p className="eyebrow">Winter drive decision</p>
+          <p className="eyebrow">Drive decision</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <span
               className={`inline-flex rounded-full border px-4 py-2 text-sm font-bold uppercase tracking-[0.18em] ${decisionTone(
@@ -82,7 +82,7 @@ export function DecisionCard({ decision }: { decision: TripDecision }) {
                 </li>
               ))
             ) : (
-              <li>Forecast data did not identify a major winter hazard signal.</li>
+              <li>Forecast data did not identify a major driving-hazard signal.</li>
             )}
           </ul>
         </div>

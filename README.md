@@ -1,230 +1,256 @@
 # SnowRoute
 
-SnowRoute is a winter road-trip decision advisor built with Next.js App Router. It evaluates a route across both space and time: the app samples checkpoints along the drive, estimates the ETA for each checkpoint, fetches forecast data for that specific place and time, and produces a transparent drive, caution, delay, hold, or avoid recommendation.
+SnowRoute is a route-aware driving-condition advisor built with the Next.js App Router. It combines a real road route with hourly forecast data at estimated arrival times, then presents an explainable `GO`, `CAUTION`, `DELAY`, `HOLD`, or `AVOID` planning decision.
 
-## Stack
+The application is designed to support a decision, not make one for the driver. It does not know the live condition of pavement, closures, traffic, vehicle readiness, or driver ability. Always check official weather and transportation sources before departure. SnowRoute is not liable for accidents, injuries, property damage, delays, or other outcomes arising from travel decisions.
 
-- Next.js App Router with TypeScript strict mode
-- Tailwind CSS for layout and visual system
-- Leaflet + OpenStreetMap tiles for the route map
-- OpenRouteService for geocoding and directions
-- Open-Meteo for hourly forecast data
-- Recharts for the risk timeline
-- Zod for request validation
-- Vitest for unit coverage
+## Current release status
 
-## Setup
+This branch includes the SnowRoute2 guest experience, multi-hazard analysis, local trip history, typed API errors, server-side provider access, security headers, and optional distributed rate limiting.
 
-1. Install dependencies:
+Account and cloud-persistence work is intentionally **not operational**. The repository contains an account-readiness screen and a PostgreSQL schema foundation, but there is no runtime database adapter, OIDC callback/session implementation, authenticated trip API, or guest-to-account importer. Setting database or authentication environment variables does not enable accounts. See [Database and account readiness](docs/DATABASE.md).
 
-```bash
-npm install
-```
+## What SnowRoute does
 
-2. Create a local environment file:
+- Resolves suggested addresses and places through openrouteservice geocoding.
+- Builds a drivable route, including up to two optional stops.
+- Samples checkpoints across the route and estimates an arrival time at each one.
+- Matches each checkpoint to Open-Meteo hourly temperature, precipitation, snowfall, visibility, wind, gust, weather-code, and day/night data.
+- Evaluates snow, freezing precipitation, possible icing, fog and low visibility, wind, heavy rain and hydroplaning proxies, thunderstorms and hail, temperature extremes, and compound hazards.
+- Compares hourly departure options using the same route and forecast-normalization pipeline. Past same-day hours are excluded; future travel days include up to 24 valid local hours, and the selected minute is preserved.
+- Groups sustained `High` and `Severe` checkpoints into danger windows and derives route-relative hold guidance.
+- Stores up to 20 compact recent analyses in the user's browser for private, account-free re-analysis.
 
-```bash
-cp .env.example .env.local
-```
+SnowRoute does **not** ingest official alerts, road closures, road-surface sensors, flood observations, traffic, elevation, bridge/open-terrain exposure, plow status, or vehicle-specific data. It never claims inferred icing, hydroplaning, drifting, flooding, or whiteout conditions are observed facts.
 
-3. Add your OpenRouteService API key to `.env.local`:
+## Technology
 
-```bash
-ORS_API_KEY=your_key_here
-```
+- Next.js 16 App Router, React 19, and strict TypeScript
+- Tailwind CSS 4
+- Leaflet, React Leaflet, and OpenStreetMap map tiles
+- Recharts
+- Zod request validation
+- date-fns and date-fns-tz
+- Vitest
+- openrouteservice Geocoding and Directions APIs
+- Open-Meteo Forecast API
+- Optional Upstash Redis REST rate-limit backend
 
-4. Start the app:
+## Local setup
 
-```bash
-npm run dev
-```
+Requirements: a current Node.js release compatible with Next.js 16, npm, and an openrouteservice API key.
+
+1. Install dependencies.
+
+   ```bash
+   npm install
+   ```
+
+2. Copy the environment template.
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Add an openrouteservice key to `.env.local`.
+
+   ```dotenv
+   ORS_API_KEY=replace_with_your_server_side_key
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   ```
+
+4. Start the development server.
+
+   ```bash
+   npm run dev
+   ```
 
 5. Open `http://localhost:3000`.
 
-## Architecture
+Do not commit `.env.local` or any real credential. `ORS_API_KEY`, Redis credentials, database URLs, and authentication secrets are server-only. Only `NEXT_PUBLIC_APP_URL` is intentionally available to browser bundles.
 
-The app is organized by responsibility so the domain logic stays portable and testable:
+## Environment variables
 
-- `app/`: Next.js routes, route handlers, layout, and the single-page dashboard shell
-- `components/`: interactive UI sections including the form, map, summary panel, table, and chart
-- `lib/`: routing, polyline decoding, sampling, weather normalization, risk scoring, and orchestration
-- `hooks/`: debounced client search behavior for place suggestions
-- `tests/`: focused unit coverage for route sampling and risk logic
+| Variable | Required | Runtime use |
+| --- | --- | --- |
+| `ORS_API_KEY` | Yes for location search and route analysis | Server-side openrouteservice geocoding and directions authentication. |
+| `NEXT_PUBLIC_APP_URL` | Recommended | Canonical metadata base; use the exact origin for the environment. |
+| `UPSTASH_REDIS_REST_URL` | Required for distributed production limiting | Shared Upstash Redis REST endpoint used by public API rate limits. |
+| `UPSTASH_REDIS_REST_TOKEN` | Required with the Redis URL | Server-side Redis REST bearer token. |
+| `RATE_LIMIT_SALT` | Required in production | Secret salt used before hashing anonymous network/client attributes into rate-limit keys. |
+| `DATABASE_URL` | Reserved; does not enable accounts | Future managed PostgreSQL connection. No database client connects with it. |
+| `AUTH_ISSUER` | Reserved; does not enable accounts | Future audited OIDC issuer. No sign-in flow is implemented. |
+| `AUTH_SECRET` | Reserved; does not enable accounts | Future high-entropy session/authentication secret. |
 
-### Core domain modules
+If Redis is not configured or temporarily fails, the application uses an expiring in-memory limiter and logs a degraded warning in production. That fallback is per process and is **not sufficient distributed abuse protection** for a multi-instance deployment.
 
-- `lib/routing.ts`: OpenRouteService geocoding and directions wrappers with cache protection
-- `lib/polyline.ts`: encoded polyline decoding
-- `lib/sampling.ts`: route interpolation, cumulative distances, and ETA sampling
-- `lib/weather.ts`: Open-Meteo normalization, timezone-aware matching, caching, and concurrency control
-- `lib/risk.ts`: explainable winter risk scoring, hazard-window grouping, and trip recommendations
-- `lib/departure-optimization.ts`: safest-departure ranking and tie descriptions
-- `lib/analysis.ts`: orchestration layer that turns a route request into one normalized analysis payload
+## Commands
 
-## API Choices
-
-### OpenRouteService
-
-OpenRouteService was chosen for two reasons:
-
-- It offers real directions and geocoding with a single API key and low setup friction.
-- Its directions response includes encoded geometry that is straightforward to decode and sample.
-
-Browser clients never call ORS directly. The app proxies requests through Next.js route handlers so the key stays server-side and responses can be normalized.
-
-### Open-Meteo
-
-Open-Meteo is the primary weather source because it provides a useful hourly forecast surface without requiring another secret. SnowRoute requests hourly temperature, precipitation, snowfall, visibility, wind speed, gusts, weather codes, and day/night state.
-
-## Risk Model
-
-SnowRoute uses an explainable 0-100 winter-driving score for every route checkpoint. The model is intentionally conservative around hazards that can make an ordinary passenger-vehicle trip unsafe quickly: freezing rain, near-whiteout visibility, snow plus wind, severe storm codes, and night driving.
-
-### Trip decision layer
-
-On top of checkpoint scoring, `lib/decision-engine.ts` turns the route into a decision-first briefing:
-
-- `GO`: forecast-based winter risk appears manageable; still check official road conditions.
-- `CAUTION`: isolated winter trouble spots are expected.
-- `DELAY`: the selected timing is high risk and a materially lower-risk hourly option was found.
-- `HOLD`: early checkpoints are more manageable but a later High/Severe window has a route-relative pre-danger decision point.
-- `AVOID`: severe or sustained risk has no clearly better departure window.
-
-The decision engine also reports forecast confidence, route-relative danger windows, main hazards, safer departure windows, data-quality notes, and a safety disclaimer. It never treats a route-relative checkpoint as a verified stopping facility.
-
-The scoring logic lives in `lib/risk.ts`. The response shape for the detailed explanations lives in `lib/types.ts`, and the risk tests live in `tests/risk.test.ts`.
-
-### Per-checkpoint score factors
-
-Each checkpoint starts at 0 and adds transparent risk factors:
-
-- Snowfall or solid precipitation: starts above `0.15 cm`, scales up to `34` points by about `3.5 cm`, and snow forecast codes add a minimum snow signal.
-- Icing / near-freezing precipitation: precipitation or freezing-precipitation codes between `-3C` and `1C` can add up to `32` points.
-- Subfreezing temperatures: below `0C` can add up to `8` points, with deeper cold treated as more likely to preserve slick surfaces.
-- Reduced visibility: below `8 km` adds risk, scaling up to `28` points by `0.4 km`.
-- Wind and gusts: starts at `35 kph`, scales up to `22` points by about `90 kph`.
-- Hazardous weather codes:
-  - freezing drizzle/rain: `24-42` points depending on intensity
-  - heavy snow / snow showers: `18-20` points
-  - thunderstorms / hail: `18-32` points
-  - fog / dense fog: `8-12` points
-- Night driving: before 7 AM or after 7 PM local time adds `6` points.
-
-### Critical score floors
-
-Some combinations are dangerous enough that SnowRoute forces a minimum score even if the additive score would otherwise be lower:
-
-- Freezing drizzle/rain forces at least `60`; dense or heavy freezing precipitation forces at least `75`.
-- Visibility at or below `0.8 km` forces at least `55`.
-- Visibility at or below `0.4 km` forces at least `65`.
-- Snow plus visibility at or below `0.8 km` plus wind at or above `45 kph` forces at least `75`.
-- Snow plus visibility at or below `0.4 km` plus wind at or above `56 kph` forces at least `90`.
-- Snow plus gusts at or above `70 kph` forces at least `70`.
-- Severe thunderstorm with hail forces at least `70`.
-
-Risk labels:
-
-- `0-24`: Low
-- `25-49`: Moderate
-- `50-74`: High
-- `75-100`: Severe
-
-### Hazard windows
-
-A hazard window is created when one or more route checkpoints score `50+` (`High` or `Severe`). Nearby high-risk checkpoints are merged across short lower-risk gaps so the UI shows a practical travel window instead of noisy individual alerts.
-
-Trip recommendation rules:
-
-- `Safe`: low overall risk and no sustained High or Severe segments
-- `Use caution`: moderate overall risk or non-severe hazard windows
-- `Delay recommended`: high overall risk or a brief Severe window
-- `Avoid travel`: overall Severe risk or Severe windows covering at least 20% of the route
-
-The trip's overall score is a blend of the route average and the worst checkpoint:
-
-```text
-overallScore = averageScore * 0.6 + maxScore * 0.4
+```bash
+npm run dev        # Next.js development server (webpack)
+npm run test       # Vitest unit suite
+npm run test:watch # Vitest watch mode
+npm run lint       # ESLint
+npm run build      # Production Next.js build (webpack)
+npm run start      # Serve a completed production build
 ```
 
-That means one bad pocket matters, but a long route with only a short bad stretch is not treated the same as a route that is dangerous end to end. Severe hazard-window coverage can still escalate the recommendation to `Avoid travel`.
-
-### Guidance shown to users
-
-For every checkpoint, hazard window, and trip summary, SnowRoute now returns structured guidance:
-
-- `headline`: the risk level and dominant causes
-- `impact`: what that means for real driving
-- `gamePlan`: the recommended action
-
-For anything above `Low`, the app explains why it is risky and how to respond. Examples include delaying the trip, stopping before the worst segment, avoiding cruise control, increasing following distance, treating bridges and ramps as icy, avoiding exposed highways in high wind, and waiting until a flagged window passes.
-
-### Calibration note
-
-This is a deterministic forecast-based heuristic, not an official road-closure or emergency-management system. The thresholds are aligned with common winter-driving safety concepts and warning-style triggers such as dense fog / blizzard-level visibility, freezing precipitation, strong wind, snow squalls, and hail. Actual safety still depends on tires, vehicle type, driver experience, road treatment, traffic, terrain, and rapidly changing local conditions.
-
-## Time-Aware Weather Matching
-
-This is the product's core differentiator:
-
-1. The route geometry is decoded and sampled evenly across the drive.
-2. ETA is estimated for each sample by distance ratio across the total route duration.
-3. Sample ETA is stored in UTC.
-4. Open-Meteo forecasts are fetched for rounded route checkpoints with hourly data in each location’s local timezone.
-5. Forecast rows are converted back to UTC for reliable comparison.
-6. The nearest hourly forecast within a 2-hour tolerance is matched to the route checkpoint.
-
-If snowfall or visibility are missing, the app continues and surfaces data-quality notes instead of failing the whole analysis.
-
-## Departure Optimization
-
-After the selected route is analyzed, SnowRoute also checks every hourly departure from `12 AM` through `11 PM` on the chosen travel day. Each hour reuses the same route geometry and duration, shifts the checkpoint ETAs, matches weather for those shifted checkpoint times, and produces a comparable route-level safety score.
-
-The optimizer ranks candidate departure hours by:
-
-- lowest overall trip risk score
-- lowest worst-checkpoint score
-- fewest High or Severe hazard windows
-- most complete forecast coverage
-- lowest average checkpoint score
-
-If multiple hours are effectively tied, the UI says so instead of pretending there is false precision. If every checked hour has the same risk profile, SnowRoute describes the day as equally safe for that route. Hours with incomplete forecast coverage remain visible in the chart, but if fully matched forecast windows exist, incomplete windows are not promoted as the safest option.
-
-The chart in `components/departure-time-optimizer.tsx` visualizes safety as `100 - overallScore`, so taller/greener bars mean safer departure windows and lower/orange-red bars mean riskier windows.
-
-## Trip workflow and weather-hold suggestions
-
-The Analyze a Trip experience is deliberately separated into three stages:
-
-1. **Trip details** keeps locations, optional stops, and departure settings together. Departure uses compact time, month, day, and year controls—without a date-picker calendar. The selected departure time is not persisted; each fresh visit defaults to the current day about one hour ahead.
-2. **Analysis** presents the map, route summary, departure comparison, checkpoint table, and timeline only after a route is analyzed.
-3. **Suggestions** opens only when the traveler selects **See suggestions**. It turns sustained High/Severe forecast windows into route-relative weather-hold decision points.
-
-Each suggested hold point is placed at the sampled checkpoint immediately before a flagged window where possible. Its operational hold-likelihood indicator combines the model's peak risk score with forecast visibility, wind gusts, snowfall, and near-freezing precipitation. This percentage is not a crash, closure, or facility-availability probability. It is a conservative planning signal and does not identify verified places to stop; travelers must confirm a legal, open off-road location and current local road conditions.
-
-The guidance is informed by the [National Weather Service winter storm driving advice](https://www.weather.gov/safety/winter-during), including waiting for visibility to improve, and [NHTSA winter driving guidance](https://www.nhtsa.gov/winter-driving-tips), including adjusting the departure around the worst weather and planning longer-trip stops.
-
-## Testing
-
-Run the unit suite with:
+Before opening a pull request or deploying, run:
 
 ```bash
 npm run test
+npm run lint
+npm run build
 ```
 
-Covered areas:
+## Product flow
 
-- cumulative distance and interpolation behavior
-- sample count clamping and ETA progression
-- duplicate coordinate handling
-- risk labels and score thresholds
-- icing, wind, visibility, night-driving, and severe weather boosts
-- hazard window grouping and recommendation escalation
+The planner separates a trip into three clear views:
 
-## Future Improvements
+1. **Trip details** — origin, destination, optional stops, compact time/month/day/year controls, and timezone.
+2. **Analysis** — decision, confidence, danger windows, route map, route checkpoints, and hourly departure comparison.
+3. **Suggestions** — shown only after the user selects **See suggestions**; offers formal, route-relative strategy and potential pre-hazard hold points.
 
-- live DOT road closures, chain laws, plow status, and official alert feeds
-- mountain-pass and route-elevation context
-- alternate-route comparison with side-by-side decision deltas
-- user vehicle, tire, and experience profiles that never downgrade ice or severe-visibility hazards
-- shareable public trip decision summaries
-- further weather batching for extremely long routes and premium quotas
+A fresh visit defaults to approximately one hour ahead of the current time. Location drafts may be retained for convenience, but a previous departure timestamp is not reused. Editing a selected suggestion invalidates its stored coordinates until a new result is selected.
+
+The homepage has a compact trip launcher. It passes a short-lived trip draft through browser session storage to the full planner; it does not call providers directly from the browser.
+
+## Providers and data provenance
+
+### openrouteservice
+
+The server calls openrouteservice for both address/place suggestions and `driving-car` directions. Provider identifiers, address components, precision classifications, and approximation flags are normalized before reaching the client. The API key is never sent to browser code.
+
+### Open-Meteo
+
+The server requests hourly forecasts with `timezone=auto`. Provider-local timestamps are converted to UTC, matched to route checkpoint ETAs, and formatted for the selected display timezone. A nearest forecast hour may be used within a bounded tolerance; that fallback and missing fields reduce confidence.
+
+### Maps
+
+The browser renders routes with Leaflet and OpenStreetMap raster tiles. Map code is client-only and loaded dynamically. Map presentation is secondary to the textual decision; map tiles are not an analysis data source.
+
+No official alert provider is configured in this release. A forecast weather code is not presented as a government warning or road restriction.
+
+## Risk and decision model
+
+Every response includes immutable provenance metadata:
+
+- Risk model: `risk-model-2.0.0`
+- Analysis pipeline: `route-analysis-2.0.0`
+- Analysis timestamp and provider names
+
+Checkpoint scores use a 0–100 scale:
+
+- `0–24`: Low
+- `25–49`: Moderate
+- `50–74`: High
+- `75–100`: Severe
+
+The engine keeps thresholds in `lib/hazard-engine.ts`. Important signals include snowfall beginning above `0.15 cm/h`, reduced visibility below `4.8 km`, wind/gust caution beginning at `48 km/h`, heavy rain beginning at `7.5 mm/h`, and icing inference when measurable precipitation occurs roughly between `-6°C` and `2°C`. Critical combinations apply conservative floors; for example, snow with strong wind and near-zero visibility can force a score of 90.
+
+Independent hazard families are combined with diminishing weights so correlated fields do not simply add without bound. Darkness adds risk only when an underlying hazard exists. Missing data reduces confidence and is never described as evidence of safety.
+
+Route-level risk is currently:
+
+```text
+overallScore = round(averageCheckpointScore × 0.6 + worstCheckpointScore × 0.4)
+```
+
+Sustained Severe coverage can escalate the route recommendation even when the blended score is lower. The separate decision engine considers the selected result, danger windows, forecast coverage, material-hazard inference confidence, the route-relative hold point, and materially lower-risk departure hours to choose the decision label. A decision-driving inferred or lower-confidence hazard caps the trip-level confidence and explains why.
+
+These thresholds are explainable planning heuristics, not a statistically calibrated crash, closure, or stopping probability.
+
+## Guest history and privacy
+
+Guest history is local-first and optional:
+
+- IndexedDB is the primary store; localStorage is a compatibility fallback.
+- At most 20 unique route summaries are retained, newest first.
+- A repeat analysis of the same coordinate sequence replaces the older summary.
+- Entries contain normalized route labels/coordinates, departure information, compact decision fields, model version, and timestamps—not raw provider responses or full forecast payloads.
+- Users can delete one trip or clear all history.
+- **Analyze again** restores route inputs but deliberately chooses a fresh default departure, because an old forecast is stale.
+- Clearing site data, private-browsing behavior, or browser storage policy can remove the history.
+
+Precise routes can reveal home, work, and travel patterns. Guest data remains in the current browser and is not uploaded or synchronized by this implementation.
+
+## API behavior
+
+Public route handlers validate input on the server and return stable internal error codes rather than raw provider messages. Successful geocode and analysis calls use:
+
+```json
+{
+  "ok": true,
+  "data": {},
+  "meta": {
+    "correlationId": "SR-…",
+    "durationMs": 123
+  }
+}
+```
+
+Failures use:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "DESTINATION_NOT_FOUND",
+    "title": "We couldn’t find the destination.",
+    "message": "Choose a suggested address or enter a more complete location.",
+    "field": "destination",
+    "retryable": false,
+    "correlationId": "SR-…"
+  }
+}
+```
+
+Field-specific errors can be returned for origin and destination together. Expected status classes include `400` invalid input, `422` resolvable request with invalid route/location semantics, `429` rate limited, `502` invalid/upstream response, `503` unavailable or misconfigured, and `504` provider timeout. Technical context and stack traces stay in structured server logs.
+
+`GET /api/health` reports application and route-key configuration readiness without calling paid/external providers or revealing secrets. It is a shallow health check, not proof that providers are currently reachable.
+
+## Repository map
+
+- `app/` — pages, layouts, error boundaries, and API route handlers
+- `components/` — planner, results, navigation, map, charts, suggestions, and history UI
+- `hooks/` — debounced/cancellable search and guest-history state
+- `lib/analysis.ts` — route-analysis orchestration
+- `lib/hazard-engine.ts` — versioned multi-hazard detection and scoring
+- `lib/risk.ts` and `lib/decision-engine.ts` — route aggregation and decision guidance
+- `lib/routing.ts` and `lib/weather.ts` — provider adapters, normalization, caching, and resilience
+- `lib/app-error.ts` — internal error taxonomy and public API envelopes
+- `lib/rate-limit.ts` — shared Redis or degraded per-instance public endpoint limiting
+- `lib/guest-trip-history.ts` — bounded browser-persistence abstraction
+- `db/migrations/` — reviewed schema foundation for future account persistence; not connected to runtime
+- `tests/` — domain, error, persistence, sampling, strategy, and risk tests
+
+## Production checklist
+
+- Use separate provider credentials and databases for development, preview, and production.
+- Configure `ORS_API_KEY`, canonical `NEXT_PUBLIC_APP_URL`, `RATE_LIMIT_SALT`, and a shared Redis backend.
+- Confirm response security headers and Content Security Policy against the deployed origin.
+- Run tests, lint, and a production build.
+- Review provider quotas, logs, timeout behavior, and privacy disclosures.
+- Do not enable account controls until managed PostgreSQL, OIDC, secure sessions, authenticated APIs, ownership tests, deletion, and retention jobs are implemented and audited.
+- Apply database migrations only through a reviewed deployment workflow; do not point local tests or seed tools at production.
+
+No production deployment is performed merely by working on the `SnowRoute2` branch.
+
+## Further documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Security and privacy](docs/SECURITY.md)
+- [Database and account readiness](docs/DATABASE.md)
+
+## Known limitations
+
+- Forecasts are estimates and may differ from rapidly changing local conditions.
+- No live DOT/511 closures, restrictions, incidents, or road-treatment data are used.
+- No official weather-alert feed is used; alerts cannot override the score in this release.
+- Route-relative hold points are sampled coordinates, not verified legal or open stopping facilities.
+- The model has not been calibrated as a crash/closure probability and must not be interpreted that way.
+- Provider caches and the fallback limiter are bounded per-instance memory; only the optional Redis limiter is shared.
+- Observability provides correlation IDs, total API duration, structured failure stages, and server-side routing/sampling/forecast/scoring/departure-comparison timings. It does not provide distributed traces or a hosted alerting configuration.
+- Accounts, sessions, cross-device sync, cloud retention/deletion, and guest import are not operational.
+- The SQL migration is a schema foundation, not evidence of a deployed or connected database.
+- Browser history is device/browser specific and can disappear when site data is cleared.

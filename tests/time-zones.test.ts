@@ -15,13 +15,23 @@ function createLocation(
 ): LocationSuggestion {
   return {
     id: "test-location",
+    providerId: "test-location",
     label: "Toronto, ON, Canada",
+    formattedAddress: "Toronto, ON, Canada",
+    primaryLabel: "Toronto",
     lat: 43.6532,
     lon: -79.3832,
+    locality: "Toronto",
     country: "Canada",
+    countryCode: "CAN",
     region: "Ontario",
+    postalCode: null,
     detail: "Ontario • Canada",
     placeType: "City",
+    locationType: "city",
+    precision: "city",
+    isApproximate: true,
+    providerConfidence: 0.9,
     ...overrides,
   };
 }

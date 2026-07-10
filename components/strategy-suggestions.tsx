@@ -37,7 +37,7 @@ export function StrategySuggestions({
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-300">
               A formal, forecast-based briefing that identifies decision points before
-              sustained high-risk conditions. It is designed to help you choose a safe
+              sustained high-risk conditions. It is designed to help you choose a conservative
               pause before conditions deteriorate—not to identify verified facilities or
               replace official road advisories.
             </p>
@@ -155,7 +155,7 @@ export function StrategySuggestions({
             No sustained high-risk forecast window was detected.
           </h3>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-            Keep normal winter margins and recheck conditions immediately before leaving.
+            Keep conservative driving margins and recheck conditions immediately before leaving.
             Road treatment, crashes, and local warnings can change more quickly than the
             hourly forecast used in this analysis.
           </p>

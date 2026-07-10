@@ -56,7 +56,7 @@ function summary(samples: RouteSample[]): RouteSummary {
   return {
     overallScore,
     overallLabel: overallScore >= 75 ? "Severe" : overallScore >= 50 ? "High" : overallScore >= 25 ? "Moderate" : "Low",
-    recommendation: "Safe",
+    recommendation: "Lower risk",
     worstSegmentId: null,
     averageScore: overallScore,
     maxScore,
@@ -85,7 +85,7 @@ function option(id: string, label: DepartureTimeOption["label"], isSelectedHour:
     averageScore: overallScore,
     maxScore: overallScore + 5,
     label,
-    recommendation: label === "Low" ? "Safe" : label === "Moderate" ? "Use caution" : "Delay recommended",
+    recommendation: label === "Low" ? "Lower risk" : label === "Moderate" ? "Use caution" : "Delay recommended",
     hazardWindowCount: label === "Low" ? 0 : 1,
     severeWindowCount: label === "Severe" ? 1 : 0,
     forecastCoverageRatio: 1,
@@ -142,6 +142,32 @@ describe("trip decision engine", () => {
 
     expect(decision.decision).toBe("GO");
     expect(decision.confidence).toBe("High");
+  });
+
+  it("caps trip confidence when a decision-driving hazard is inferred", () => {
+    const samples = [sample("one", 18, 0), sample("two", 58, 40)];
+    samples[1].hazards = [
+      {
+        type: "possible_icing",
+        severity: "MAJOR",
+        scoreContribution: 32,
+        title: "Possible icing",
+        explanation: "Forecast proxy",
+        source: "Normalized forecast fields",
+        observedOrForecast: "INFERRED",
+        confidence: "MEDIUM",
+      },
+    ];
+    samples[1].hazardConfidence = "HIGH";
+    const decision = buildTripDecision({
+      samples,
+      hazardWindows: [window(1, 1, samples)],
+      summary: summary(samples),
+      departureOptimization: optimization([option("selected", "High", true)]),
+    });
+
+    expect(decision.confidence).toBe("Medium");
+    expect(decision.confidenceReasons.join(" ")).toContain("inferred");
   });
 
   it("recommends DELAY when an hourly alternative materially lowers route risk", () => {

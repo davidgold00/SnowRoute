@@ -1,17 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  --background: #071112;
-  --foreground: #eef4ff;
-  --surface: rgba(9, 20, 25, 0.88);
-  --surface-strong: rgba(7, 13, 18, 0.94);
-  --surface-soft: rgba(255, 255, 255, 0.05);
-  --border-soft: rgba(181, 226, 233, 0.13);
-  --border-strong: rgba(151, 236, 224, 0.24);
-  --accent: #8be8c7;
-  --font-body: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia,
-    serif;
+  /* SnowRoute semantic design tokens */
+  --color-page: #08161d;
+  --color-page-raised: #0c1d26;
+  --color-surface: #102630;
+  --color-surface-secondary: #0d2029;
+  --color-border: #28414c;
+  --color-border-strong: #3d6670;
+  --color-text: #f4f8f9;
+  --color-text-secondary: #c8d4d8;
+  --color-text-muted: #91a5ad;
+  --color-brand: #76d5d1;
+  --color-brand-hover: #9be4e0;
+  --color-info: #75b9e8;
+  --color-risk-low: #5fb98a;
+  --color-risk-moderate: #e3b45b;
+  --color-risk-high: #ed8b4a;
+  --color-risk-severe: #e25f66;
+  --color-success: #5fb98a;
+  --color-warning: #e3b45b;
+  --color-destructive: #e25f66;
+  --color-focus: #a9f2ef;
+  --color-disabled: #5f727a;
+  --shadow-raised: 0 18px 44px rgba(0, 7, 10, 0.22);
+
+  /* Backward-compatible aliases while the component library migrates. */
+  --background: var(--color-page);
+  --foreground: var(--color-text);
+  --surface: var(--color-surface);
+  --surface-strong: var(--color-page-raised);
+  --surface-soft: var(--color-surface-secondary);
+  --border-soft: var(--color-border);
+  --border-strong: var(--color-border-strong);
+  --accent: var(--color-brand);
+  --font-body: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-display: var(--font-body);
   --font-code: "IBM Plex Mono", "SFMono-Regular", "Consolas", monospace;
 }
 
@@ -44,9 +69,8 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    linear-gradient(135deg, rgba(31, 74, 68, 0.48) 0%, rgba(9, 17, 18, 0) 42%),
-    linear-gradient(215deg, rgba(23, 48, 67, 0.56) 0%, rgba(7, 13, 18, 0) 46%),
-    linear-gradient(180deg, #0d1a1c 0%, #0a1117 48%, #05080d 100%);
+    radial-gradient(circle at 12% -10%, rgba(67, 139, 145, 0.2), transparent 36rem),
+    linear-gradient(180deg, #0a1a22 0%, var(--color-page) 32%, #071219 100%);
   content: "";
 }
 
@@ -54,19 +78,14 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background-image:
-    linear-gradient(rgba(214, 244, 245, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(214, 244, 245, 0.03) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%);
-  background-size: 72px 72px, 72px 72px, 100% 100%;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.68), transparent 78%);
-  opacity: 0.62;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%);
+  opacity: 0.7;
   pointer-events: none;
   content: "";
 }
 
 ::selection {
-  background: rgba(125, 211, 252, 0.35);
+  background: rgba(118, 213, 209, 0.32);
   color: #f8fbff;
 }
 
@@ -75,7 +94,7 @@ body::after {
 }
 
 :focus-visible {
-  outline: 2px solid rgba(165, 243, 252, 0.92);
+  outline: 2px solid var(--color-focus);
   outline-offset: 3px;
 }
 
@@ -90,7 +109,8 @@ summary,
 
 .display-type {
   font-family: var(--font-display);
-  letter-spacing: 0;
+  font-weight: 700;
+  letter-spacing: -0.045em;
   text-wrap: balance;
 }
 
@@ -99,32 +119,19 @@ summary,
   font-weight: 700;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: rgba(193, 224, 255, 0.76);
+  color: #9bc8cd;
 }
 
 .glass-panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(218, 244, 246, 0.11);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018) 30%),
-    linear-gradient(145deg, rgba(139, 232, 199, 0.055), transparent 44%),
-    var(--surface);
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.065);
-  backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
 }
 
 .glass-panel::before {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    linear-gradient(90deg, rgba(139, 232, 199, 0.08), transparent 36%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.024), transparent 38%);
-  pointer-events: none;
-  content: "";
+  content: none;
 }
 
 .glass-panel > * {
@@ -133,30 +140,23 @@ summary,
 }
 
 .panel-muted {
-  border: 1px solid var(--border-soft);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
-    rgba(8, 18, 31, 0.64);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-secondary);
 }
 
 .metric-card {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
-    rgba(7, 16, 28, 0.74);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 14px 30px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-secondary);
+  box-shadow: 0 12px 26px rgba(0, 7, 10, 0.15);
 }
 
 .metric-card::before {
   position: absolute;
   inset: 0 0 auto;
   height: 2px;
-  background: linear-gradient(90deg, rgba(139, 232, 199, 0.72), rgba(137, 216, 255, 0.12));
+  background: var(--color-brand);
   pointer-events: none;
   content: "";
 }
@@ -174,23 +174,13 @@ summary,
 .map-shell {
   position: relative;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
-    var(--surface-strong);
-  box-shadow:
-    0 28px 80px rgba(2, 8, 18, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-raised);
 }
 
 .map-shell::before {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    linear-gradient(90deg, rgba(137, 216, 255, 0.08), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 24%);
-  pointer-events: none;
-  content: "";
+  content: none;
 }
 
 .map-shell .leaflet-container {
@@ -319,25 +309,6 @@ summary,
   box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.22);
 }
 
-.snowfall {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.snowflake {
-  position: absolute;
-  top: -10%;
-  border-radius: 9999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 35%, rgba(201, 235, 255, 0.82) 60%, transparent 100%);
-  box-shadow: 0 0 12px rgba(214, 240, 255, 0.35);
-  animation-name: snowfall;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -368,54 +339,10 @@ summary,
   }
 }
 
-@keyframes snowflake-pulse {
-  0% {
-    transform: rotate(0deg) scale(1);
-  }
-
-  50% {
-    transform: rotate(8deg) scale(1.05);
-  }
-
-  100% {
-    transform: rotate(0deg) scale(1);
-  }
-}
-
-@keyframes snowfall {
-  0% {
-    transform: translate3d(0, -10vh, 0);
-    opacity: 0;
-  }
-
-  10% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translate3d(var(--snow-drift), 110vh, 0);
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .glass-panel,
   .map-shell {
     animation: lift-in 560ms ease both;
   }
 
-  [class*="group-hover"] svg {
-    transition: transform 300ms ease;
-  }
-
-  header a.group:hover svg {
-    animation: snowflake-pulse 600ms ease-out;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .snowflake {
-    animation: none;
-    opacity: 0.22;
-  }
 }

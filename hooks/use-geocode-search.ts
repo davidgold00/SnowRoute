@@ -3,26 +3,67 @@
 import { useEffect, useState } from "react";
 
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import {
+  createPublicAppError,
+  isApiFailure,
+  isApiSuccess,
+  type PublicAppError,
+} from "@/lib/app-error";
+import { normalizeLocationQuery } from "@/lib/location";
 import type { LocationSuggestion } from "@/lib/types";
 
 const searchCache = new Map<string, LocationSuggestion[]>();
+const SEARCH_CACHE_MAX_ENTRIES = 100;
+
+export type GeocodeSearchStatus =
+  | "idle"
+  | "typing"
+  | "resolving"
+  | "results"
+  | "not-found"
+  | "service-error";
+
+type SearchResult = {
+  cacheKey: string;
+  suggestions: LocationSuggestion[];
+  error: PublicAppError | null;
+};
+
+function isLocationSuggestionArray(value: unknown): value is LocationSuggestion[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (suggestion) =>
+        suggestion &&
+        typeof suggestion === "object" &&
+        "id" in suggestion &&
+        typeof suggestion.id === "string" &&
+        "label" in suggestion &&
+        typeof suggestion.label === "string" &&
+        "lat" in suggestion &&
+        typeof suggestion.lat === "number" &&
+        Number.isFinite(suggestion.lat) &&
+        "lon" in suggestion &&
+        typeof suggestion.lon === "number" &&
+        Number.isFinite(suggestion.lon),
+    )
+  );
+}
 
 export function useGeocodeSearch(query: string, enabled = true) {
-  const normalizedQuery = query.trim();
+  const normalizedQuery = normalizeLocationQuery(query);
   const debouncedQuery = useDebouncedValue(normalizedQuery, 300);
-  const [searchResult, setSearchResult] = useState<{
-    cacheKey: string;
-    suggestions: LocationSuggestion[];
-  } | null>(null);
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const cacheKey = debouncedQuery.toLowerCase();
-  const isSettledQuery = normalizedQuery.toLowerCase() === cacheKey;
+  const [retryNonce, setRetryNonce] = useState(0);
+  const cacheKey = debouncedQuery.toLocaleLowerCase();
+  const isSettledQuery = normalizedQuery.toLocaleLowerCase() === cacheKey;
   const isActiveQuery = enabled && isSettledQuery && debouncedQuery.length >= 2;
-  const cachedSuggestions = isActiveQuery ? searchCache.get(cacheKey) ?? null : null;
+  const hasCachedSuggestions = isActiveQuery && searchCache.has(cacheKey);
+  const cachedSuggestions = hasCachedSuggestions ? searchCache.get(cacheKey) ?? [] : null;
 
   useEffect(() => {
-    if (!isActiveQuery || cachedSuggestions) {
+    if (!isActiveQuery || hasCachedSuggestions) {
       return;
     }
 
@@ -30,7 +71,6 @@ export function useGeocodeSearch(query: string, enabled = true) {
 
     async function loadSuggestions() {
       setIsLoading(true);
-      setError(null);
 
       try {
         const response = await fetch("/api/geocode", {
@@ -43,31 +83,52 @@ export function useGeocodeSearch(query: string, enabled = true) {
           }),
           signal: abortController.signal,
         });
+        const payload: unknown = await response.json().catch(() => null);
 
-        if (!response.ok) {
-          throw new Error("Place search is temporarily unavailable.");
+        if (!response.ok || isApiFailure(payload)) {
+          setSearchResult({
+            cacheKey,
+            suggestions: [],
+            error: isApiFailure(payload)
+              ? payload.error
+              : createPublicAppError("GEOCODER_UNAVAILABLE"),
+          });
+          return;
         }
 
-        const payload = (await response.json()) as LocationSuggestion[];
-        searchCache.set(cacheKey, payload);
+        if (!isApiSuccess<LocationSuggestion[]>(payload) || !isLocationSuggestionArray(payload.data)) {
+          setSearchResult({
+            cacheKey,
+            suggestions: [],
+            error: createPublicAppError("GEOCODER_INVALID_RESPONSE"),
+          });
+          return;
+        }
+
+        if (!searchCache.has(cacheKey) && searchCache.size >= SEARCH_CACHE_MAX_ENTRIES) {
+          const oldestKey = searchCache.keys().next().value as string | undefined;
+          if (oldestKey) {
+            searchCache.delete(oldestKey);
+          }
+        }
+        searchCache.set(cacheKey, payload.data);
         setSearchResult({
           cacheKey,
-          suggestions: payload,
+          suggestions: payload.data,
+          error: null,
         });
-      } catch (fetchError) {
+      } catch {
         if (abortController.signal.aborted) {
           return;
         }
 
+        const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+
         setSearchResult({
           cacheKey,
           suggestions: [],
+          error: createPublicAppError(isOffline ? "NETWORK_OFFLINE" : "GEOCODER_UNAVAILABLE"),
         });
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "Place search is temporarily unavailable.",
-        );
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoading(false);
@@ -80,15 +141,34 @@ export function useGeocodeSearch(query: string, enabled = true) {
     return () => {
       abortController.abort();
     };
-  }, [cacheKey, cachedSuggestions, debouncedQuery, isActiveQuery]);
+  }, [cacheKey, debouncedQuery, hasCachedSuggestions, isActiveQuery, retryNonce]);
 
-  const activeSuggestions =
-    cachedSuggestions ??
-    (searchResult?.cacheKey === cacheKey ? searchResult.suggestions : []);
+  const activeResult = searchResult?.cacheKey === cacheKey ? searchResult : null;
+  const activeSuggestions = cachedSuggestions ?? activeResult?.suggestions ?? [];
+  const activeError = cachedSuggestions ? null : activeResult?.error ?? null;
+  const isResolving =
+    isActiveQuery &&
+    !hasCachedSuggestions &&
+    (isLoading || activeResult === null);
+  let status: GeocodeSearchStatus = "idle";
+
+  if (enabled && normalizedQuery.length >= 2 && !isSettledQuery) {
+    status = "typing";
+  } else if (isActiveQuery && isResolving) {
+    status = "resolving";
+  } else if (isActiveQuery && activeError) {
+    status = "service-error";
+  } else if (isActiveQuery && activeSuggestions.length > 0) {
+    status = "results";
+  } else if (isActiveQuery) {
+    status = "not-found";
+  }
 
   return {
     suggestions: isActiveQuery ? activeSuggestions : [],
-    isLoading: isActiveQuery && !cachedSuggestions ? isLoading : false,
-    error: isActiveQuery && !cachedSuggestions ? error : null,
+    isLoading: status === "resolving",
+    error: isActiveQuery ? activeError : null,
+    status,
+    retrySearch: () => setRetryNonce((current) => current + 1),
   };
 }

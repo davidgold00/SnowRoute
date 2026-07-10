@@ -1,13 +1,13 @@
 import { z } from "zod";
 
 export const locationSchema = z.object({
-  label: z.string().trim().min(1).max(140),
+  label: z.string().trim().min(1).max(240),
   lat: z.number().min(-90).max(90),
   lon: z.number().min(-180).max(180),
 });
 
 export const geocodeQuerySchema = z.object({
-  query: z.string().trim().min(2).max(120),
+  query: z.string().trim().min(2).max(200),
 });
 
 export const analyzeRouteInputSchema = z.object({
@@ -23,13 +23,43 @@ export type Coordinate = {
   lon: number;
 };
 
+export type LocationType =
+  | "address"
+  | "business"
+  | "street"
+  | "city"
+  | "postal"
+  | "region"
+  | "landmark"
+  | "coordinates"
+  | "unknown";
+
+export type LocationPrecision =
+  | "rooftop"
+  | "parcel"
+  | "street"
+  | "postal"
+  | "city"
+  | "region"
+  | "unknown";
+
 export type LocationSuggestion = Coordinate & {
   id: string;
+  providerId?: string | null;
   label: string;
+  formattedAddress?: string;
+  primaryLabel?: string;
+  locality?: string | null;
   country: string | null;
+  countryCode?: string | null;
   region: string | null;
+  postalCode?: string | null;
   detail: string | null;
   placeType: "Address" | "Place" | "Street" | "City" | "Region";
+  locationType?: LocationType;
+  precision?: LocationPrecision;
+  isApproximate?: boolean;
+  providerConfidence?: number | null;
 };
 
 export type AnalyzeRouteInput = z.infer<typeof analyzeRouteInputSchema>;
@@ -41,7 +71,7 @@ export type TripDecisionLevel = "GO" | "CAUTION" | "DELAY" | "HOLD" | "AVOID";
 export type ForecastConfidence = "High" | "Medium" | "Low";
 
 export type Recommendation =
-  | "Safe"
+  | "Lower risk"
   | "Use caution"
   | "Delay recommended"
   | "Avoid travel";
@@ -56,6 +86,44 @@ export type RiskFactor = {
   key: string;
   label: string;
   contribution: number;
+};
+
+export type HazardType =
+  | "snow"
+  | "heavy_snow"
+  | "blowing_snow"
+  | "freezing_rain"
+  | "freezing_drizzle"
+  | "possible_icing"
+  | "fog"
+  | "low_visibility"
+  | "heavy_rain"
+  | "hydroplaning_risk"
+  | "high_wind"
+  | "thunderstorm"
+  | "severe_thunderstorm"
+  | "hail"
+  | "extreme_cold"
+  | "extreme_heat"
+  | "night_compounding"
+  | "compound_hazard"
+  | "data_uncertainty";
+
+export type HazardSeverity = "MINOR" | "MODERATE" | "MAJOR" | "EXTREME";
+
+export type HazardConfidence = "HIGH" | "MEDIUM" | "LOW";
+
+export type HazardFinding = {
+  type: HazardType;
+  severity: HazardSeverity;
+  scoreContribution: number;
+  title: string;
+  explanation: string;
+  source: string;
+  observedOrForecast: "FORECAST" | "INFERRED";
+  confidence: HazardConfidence;
+  rawValue?: number | string;
+  units?: string;
 };
 
 export type WeatherMatchSource = "exact" | "nearest" | "unavailable";
@@ -88,6 +156,9 @@ export type RouteSample = {
   label: RiskLabel;
   explanationFactors: string[];
   factors: RiskFactor[];
+  hazards?: HazardFinding[];
+  hazardConfidence?: HazardConfidence;
+  hazardConfidenceReasons?: string[];
   guidance: RiskGuidance;
 };
 
@@ -218,7 +289,17 @@ export type TripDecision = {
   safetyDisclaimer: string;
 };
 
+export type AnalysisMetadata = {
+  analyzedAt: string;
+  analysisVersion: string;
+  riskModelVersion: string;
+  weatherProvider: string;
+  routeProvider: string;
+  geocoderProvider: string;
+};
+
 export type RouteAnalysisResponse = {
+  metadata: AnalysisMetadata;
   route: {
     coordinates: Coordinate[];
     distanceKm: number;

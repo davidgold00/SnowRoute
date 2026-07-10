@@ -1,36 +1,29 @@
 import "server-only";
 
+import {
+  AppError,
+  mapProviderException,
+  mapProviderResponseError,
+} from "@/lib/app-error";
+import {
+  type GeocodeFeature,
+  normalizeGeocodeSuggestions,
+  normalizeLocationQuery,
+} from "@/lib/location";
 import type { Coordinate, LocationSuggestion } from "@/lib/types";
 
 const ORS_BASE_URL = "https://api.openrouteservice.org";
 const GEOCODE_TTL_MS = 1000 * 60 * 60 * 12;
 const ROUTE_TTL_MS = 1000 * 60 * 10;
+const GEOCODE_TIMEOUT_MS = 8000;
+const ROUTE_TIMEOUT_MS = 12000;
+const GEOCODE_CACHE_MAX_ENTRIES = 500;
+const ROUTE_CACHE_MAX_ENTRIES = 250;
+const MAX_ROUTE_DISTANCE_KM = 3_000;
 
 type CacheEntry<T> = {
   expiresAt: number;
   value: T;
-};
-
-type GeocodeFeature = {
-  geometry?: {
-    coordinates?: [number, number];
-  };
-  properties?: {
-    gid?: string;
-    label?: string;
-    country?: string;
-    region?: string;
-    county?: string;
-    locality?: string;
-    localadmin?: string;
-    borough?: string;
-    neighbourhood?: string;
-    name?: string;
-    housenumber?: string;
-    street?: string;
-    postalcode?: string;
-    layer?: string;
-  };
 };
 
 type GeocodeResponse = {
@@ -83,7 +76,16 @@ function setCachedValue<T>(
   key: string,
   ttlMs: number,
   value: T,
+  maxEntries: number,
 ) {
+  if (!cache.has(key) && cache.size >= maxEntries) {
+    const oldestKey = cache.keys().next().value as string | undefined;
+
+    if (oldestKey) {
+      cache.delete(oldestKey);
+    }
+  }
+
   cache.set(key, {
     expiresAt: Date.now() + ttlMs,
     value,
@@ -94,7 +96,9 @@ function getOrsApiKey() {
   const apiKey = process.env.ORS_API_KEY;
 
   if (!apiKey) {
-    throw new Error("Missing ORS_API_KEY. Add it to your local environment.");
+    throw new AppError("CONFIGURATION_ERROR", {
+      technicalContext: { configurationKey: "ORS_API_KEY" },
+    });
   }
 
   return apiKey;
@@ -102,112 +106,24 @@ function getOrsApiKey() {
 
 async function parseApiError(response: Response) {
   try {
-    const payload = (await response.json()) as { error?: { message?: string } };
-    return payload.error?.message ?? response.statusText;
+    const payload = (await response.json()) as {
+      error?: { message?: string } | string;
+      message?: string;
+    };
+
+    if (typeof payload.error === "string") {
+      return payload.error;
+    }
+
+    return payload.error?.message ?? payload.message ?? response.statusText;
   } catch {
     return response.statusText;
   }
 }
 
-function createSuggestionLabel(feature: GeocodeFeature) {
-  const streetAddress = [feature.properties?.housenumber, feature.properties?.street]
-    .filter((part): part is string => Boolean(part?.trim()))
-    .join(" ");
-  const locality =
-    feature.properties?.locality ??
-    feature.properties?.localadmin ??
-    feature.properties?.borough ??
-    feature.properties?.county;
-
-  if (streetAddress) {
-    return compactLocationParts([
-      streetAddress,
-      locality,
-      feature.properties?.region,
-      feature.properties?.country,
-    ]).join(", ");
-  }
-
-  const label = feature.properties?.label?.trim();
-
-  if (label) {
-    return label;
-  }
-
-  const parts = [
-    feature.properties?.name,
-    feature.properties?.locality,
-    feature.properties?.region,
-    feature.properties?.country,
-  ].filter((part): part is string => Boolean(part && part.trim()));
-
-  return parts.join(", ");
-}
-
-function compactLocationParts(parts: Array<string | null | undefined>) {
-  const seen = new Set<string>();
-
-  return parts
-    .map((part) => part?.trim())
-    .filter((part): part is string => Boolean(part))
-    .filter((part) => {
-      const normalizedPart = part.toLowerCase();
-
-      if (seen.has(normalizedPart)) {
-        return false;
-      }
-
-      seen.add(normalizedPart);
-      return true;
-    });
-}
-
-function getSuggestionType(feature: GeocodeFeature): LocationSuggestion["placeType"] {
-  switch (feature.properties?.layer) {
-    case "address":
-      return "Address";
-    case "venue":
-      return "Place";
-    case "street":
-      return "Street";
-    case "locality":
-    case "localadmin":
-      return "City";
-    default:
-      return "Region";
-  }
-}
-
-function createSuggestionDetail(feature: GeocodeFeature) {
-  const placeType = getSuggestionType(feature);
-  const locality =
-    feature.properties?.locality ??
-    feature.properties?.localadmin ??
-    feature.properties?.borough ??
-    feature.properties?.county;
-  const details =
-    placeType === "Address"
-      ? [
-          feature.properties?.neighbourhood,
-          locality,
-          feature.properties?.region,
-          feature.properties?.postalcode,
-          feature.properties?.country,
-        ]
-      : [
-          feature.properties?.street,
-          feature.properties?.neighbourhood,
-          locality,
-          feature.properties?.region,
-          feature.properties?.country,
-        ];
-  const compactDetails = compactLocationParts(details);
-
-  return compactDetails.length > 0 ? compactDetails.join(" • ") : null;
-}
-
-export async function geocodeLocation(query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
+export async function geocodeLocation(query: string, signal?: AbortSignal) {
+  const cleanedQuery = normalizeLocationQuery(query);
+  const normalizedQuery = cleanedQuery.toLocaleLowerCase();
 
   if (normalizedQuery.length < 2) {
     return [];
@@ -220,8 +136,8 @@ export async function geocodeLocation(query: string) {
   }
 
   const params = new URLSearchParams({
-    text: query.trim(),
-    size: "8",
+    text: cleanedQuery,
+    size: "10",
     layers: [
       "address",
       "venue",
@@ -234,91 +150,121 @@ export async function geocodeLocation(query: string) {
     api_key: getOrsApiKey(),
   });
 
-  const response = await fetch(`${ORS_BASE_URL}/geocode/search?${params}`, {
-    headers: {
-      Accept: "application/json",
-    },
-    next: {
-      revalidate: 60 * 60 * 12,
-    },
-  });
+  let response: Response;
 
-  if (!response.ok) {
-    throw new Error(`Geocoding request failed: ${await parseApiError(response)}`);
+  try {
+    const timeoutSignal = AbortSignal.timeout(GEOCODE_TIMEOUT_MS);
+    response = await fetch(`${ORS_BASE_URL}/geocode/search?${params}`, {
+      headers: {
+        Accept: "application/json",
+      },
+      next: {
+        revalidate: 60 * 60 * 12,
+      },
+      signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+    });
+  } catch (error) {
+    throw mapProviderException("geocoding", error);
   }
 
-  const payload = (await response.json()) as GeocodeResponse;
-  const suggestions = (payload.features ?? [])
-    .map((feature) => {
-      const coordinates = feature.geometry?.coordinates;
-      const label = createSuggestionLabel(feature);
+  if (!response.ok) {
+    throw mapProviderResponseError(
+      "geocoding",
+      response.status,
+      await parseApiError(response),
+    );
+  }
 
-      if (!coordinates || !label) {
-        return null;
-      }
+  let payload: GeocodeResponse;
 
-      return {
-        id:
-          feature.properties?.gid ??
-          `${label.toLowerCase().replace(/\s+/g, "-")}-${coordinates[1]}-${coordinates[0]}`,
-        label,
-        lat: coordinates[1],
-        lon: coordinates[0],
-        country: feature.properties?.country ?? null,
-        region:
-          feature.properties?.region ??
-          feature.properties?.county ??
-          feature.properties?.locality ??
-          null,
-        detail: createSuggestionDetail(feature),
-        placeType: getSuggestionType(feature),
-      } satisfies LocationSuggestion;
-    })
-    .filter((suggestion): suggestion is LocationSuggestion => suggestion !== null);
+  try {
+    payload = (await response.json()) as GeocodeResponse;
+  } catch (error) {
+    throw new AppError("GEOCODER_INVALID_RESPONSE", {
+      cause: error,
+      technicalContext: { providerStatus: response.status, stage: "geocoding" },
+    });
+  }
 
-  setCachedValue(geocodeCache, normalizedQuery, GEOCODE_TTL_MS, suggestions);
+  if (!Array.isArray(payload.features)) {
+    throw new AppError("GEOCODER_INVALID_RESPONSE", {
+      technicalContext: { providerStatus: response.status, stage: "geocoding" },
+    });
+  }
+
+  const suggestions = normalizeGeocodeSuggestions(payload.features);
+
+  setCachedValue(
+    geocodeCache,
+    normalizedQuery,
+    GEOCODE_TTL_MS,
+    suggestions,
+    GEOCODE_CACHE_MAX_ENTRIES,
+  );
 
   return suggestions;
 }
 
-export async function getRouteDirections(stops: Coordinate[]) {
+export async function getRouteDirections(stops: Coordinate[], signal?: AbortSignal) {
   if (stops.length < 2) {
-    throw new Error("A route needs at least an origin and a destination.");
+    throw new AppError("INVALID_REQUEST");
   }
 
-  const cacheKey = JSON.stringify(stops);
+  const cacheKey = stops
+    .map((stop) => `${stop.lat.toFixed(5)},${stop.lon.toFixed(5)}`)
+    .join("|");
   const cached = getCachedValue(routeCache, cacheKey);
 
   if (cached) {
     return cached;
   }
 
-  const response = await fetch(`${ORS_BASE_URL}/v2/directions/driving-car/json`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: getOrsApiKey(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      coordinates: stops.map((stop) => [stop.lon, stop.lat]),
-      instructions: false,
-      geometry_simplify: false,
-    }),
-  });
+  let response: Response;
 
-  if (!response.ok) {
-    throw new Error(`Routing request failed: ${await parseApiError(response)}`);
+  try {
+    const timeoutSignal = AbortSignal.timeout(ROUTE_TIMEOUT_MS);
+    response = await fetch(`${ORS_BASE_URL}/v2/directions/driving-car/json`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: getOrsApiKey(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        coordinates: stops.map((stop) => [stop.lon, stop.lat]),
+        instructions: false,
+        geometry_simplify: false,
+      }),
+      signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+    });
+  } catch (error) {
+    throw mapProviderException("routing", error);
   }
 
-  const payload = (await response.json()) as DirectionsResponse;
+  if (!response.ok) {
+    throw mapProviderResponseError("routing", response.status, await parseApiError(response));
+  }
+
+  let payload: DirectionsResponse;
+
+  try {
+    payload = (await response.json()) as DirectionsResponse;
+  } catch (error) {
+    throw new AppError("ROUTER_INVALID_RESPONSE", {
+      cause: error,
+      technicalContext: { providerStatus: response.status, stage: "routing" },
+    });
+  }
+
   const route = payload.routes?.[0];
   const encodedPolyline = route?.geometry;
   const distanceMeters = route?.summary?.distance;
   const durationSeconds = route?.summary?.duration;
 
   if (!encodedPolyline || typeof distanceMeters !== "number" || typeof durationSeconds !== "number") {
-    throw new Error("The routing provider returned an unexpected response.");
+    throw new AppError("ROUTER_INVALID_RESPONSE", {
+      technicalContext: { providerStatus: response.status, stage: "routing" },
+    });
   }
 
   const normalizedRoute = {
@@ -327,7 +273,19 @@ export async function getRouteDirections(stops: Coordinate[]) {
     durationMinutes: durationSeconds / 60,
   };
 
-  setCachedValue(routeCache, cacheKey, ROUTE_TTL_MS, normalizedRoute);
+  if (normalizedRoute.distanceKm > MAX_ROUTE_DISTANCE_KM) {
+    throw new AppError("ROUTE_TOO_LONG", {
+      technicalContext: { distanceKm: Math.round(normalizedRoute.distanceKm) },
+    });
+  }
+
+  setCachedValue(
+    routeCache,
+    cacheKey,
+    ROUTE_TTL_MS,
+    normalizedRoute,
+    ROUTE_CACHE_MAX_ENTRIES,
+  );
 
   return normalizedRoute;
 }

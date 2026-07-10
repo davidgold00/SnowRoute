@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 const FORECAST_DAY_COUNT = 15;
 const TIME_STEP_MINUTES = 15;
@@ -9,6 +9,8 @@ type DeparturePickerProps = {
   value: string;
   timeZone: string;
   disabled?: boolean;
+  errorId?: string;
+  invalid?: boolean;
   onChange: (value: string) => void;
 };
 
@@ -109,23 +111,36 @@ export function DeparturePicker({
   value,
   timeZone,
   disabled = false,
+  errorId,
+  invalid = false,
   onChange,
 }: DeparturePickerProps) {
+  const timeSelectRef = useRef<HTMLSelectElement>(null);
   const { dateValue, minutes } = parseLocalDateTime(value);
   const dateOptions = useMemo(
-    () =>
-      Array.from({ length: FORECAST_DAY_COUNT }, (_, index) => {
-        const date = addDays(new Date(), index);
+    () => {
+      const now = new Date();
+      const nextSlotMinutes = Math.ceil(
+        (now.getHours() * 60 + now.getMinutes() + TIME_STEP_MINUTES) / TIME_STEP_MINUTES,
+      ) * TIME_STEP_MINUTES;
+      const startOffset = nextSlotMinutes > 23 * 60 + 45 ? 1 : 0;
+
+      return Array.from({ length: FORECAST_DAY_COUNT - startOffset }, (_, index) => {
+        const date = addDays(now, index + startOffset);
         return {
           dateValue: formatDateInputValue(date),
           year: date.getFullYear(),
           month: date.getMonth(),
           day: date.getDate(),
         };
-      }),
+      });
+    },
     [],
   );
-  const selectedDate = parseDateValue(dateValue) ?? new Date();
+  const effectiveDateValue = dateOptions.some((option) => option.dateValue === dateValue)
+    ? dateValue
+    : dateOptions[0]?.dateValue ?? dateValue;
+  const selectedDate = parseDateValue(effectiveDateValue) ?? new Date();
   const selectedYear = selectedDate.getFullYear();
   const selectedMonth = selectedDate.getMonth();
   const selectedDay = selectedDate.getDate();
@@ -140,12 +155,18 @@ export function DeparturePicker({
   const dayOptions = dateOptions.filter(
     (option) => option.year === selectedYear && option.month === selectedMonth,
   );
-  const minimumMinutes = getMinimumMinutesForDate(dateValue);
+  const minimumMinutes = getMinimumMinutesForDate(effectiveDateValue);
   const selectedMinutes = Math.max(minutes, minimumMinutes);
   const timeOptions = Array.from(
     { length: 24 * (60 / TIME_STEP_MINUTES) },
     (_, index) => index * TIME_STEP_MINUTES,
   );
+
+  useEffect(() => {
+    if (invalid && errorId && !disabled) {
+      timeSelectRef.current?.focus();
+    }
+  }, [disabled, errorId, invalid]);
 
   function commit(nextDateValue: string, nextMinutes: number) {
     if (!dateOptions.some((option) => option.dateValue === nextDateValue)) {
@@ -193,7 +214,7 @@ export function DeparturePicker({
             Departure
           </p>
           <p className="mt-1 text-base font-semibold text-white">
-            {formatSelectedDate(dateValue)} at {formatClock(selectedMinutes)}
+            {formatSelectedDate(effectiveDateValue)} at {formatClock(selectedMinutes)}
           </p>
         </div>
         <span className="max-w-full truncate rounded-lg border border-cyan-100/15 bg-cyan-300/8 px-3 py-1.5 text-xs font-medium text-cyan-50">
@@ -205,9 +226,12 @@ export function DeparturePicker({
         <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
           Time
           <select
+            ref={timeSelectRef}
             value={selectedMinutes}
             disabled={disabled}
-            onChange={(event) => commit(dateValue, Number(event.target.value))}
+            aria-describedby={errorId}
+            aria-invalid={invalid}
+            onChange={(event) => commit(effectiveDateValue, Number(event.target.value))}
             className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {timeOptions.map((option) => (
@@ -223,6 +247,8 @@ export function DeparturePicker({
           <select
             value={selectedMonth}
             disabled={disabled}
+            aria-describedby={errorId}
+            aria-invalid={invalid}
             onChange={(event) => selectMonth(Number(event.target.value))}
             className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -239,6 +265,8 @@ export function DeparturePicker({
           <select
             value={selectedDay}
             disabled={disabled}
+            aria-describedby={errorId}
+            aria-invalid={invalid}
             onChange={(event) => {
               const nextDate = dayOptions.find(
                 (option) => option.day === Number(event.target.value),
@@ -262,6 +290,8 @@ export function DeparturePicker({
           <select
             value={selectedYear}
             disabled={disabled}
+            aria-describedby={errorId}
+            aria-invalid={invalid}
             onChange={(event) => selectYear(Number(event.target.value))}
             className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
           >

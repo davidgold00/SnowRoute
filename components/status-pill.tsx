@@ -58,7 +58,7 @@ export function RecommendationPill({
   recommendation: Recommendation;
 }) {
   const tone =
-    recommendation === "Safe"
+    recommendation === "Lower risk"
       ? "safe"
       : recommendation === "Use caution"
         ? "warning"

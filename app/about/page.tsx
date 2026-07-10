@@ -2,18 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "About | SnowRoute",
-  description: "How SnowRoute turns winter route forecasts into drive, delay, hold, or avoid guidance.",
+  title: "About",
+  description: "How SnowRoute turns route-specific weather forecasts into drive, delay, hold, or avoid guidance.",
 };
 
 const sections = [
   {
     title: "What it does",
-    body: "SnowRoute turns ETA-matched winter forecasts into a clear drive, caution, delay, hold, or avoid recommendation.",
+    body: "SnowRoute turns ETA-matched forecasts into clear GO, CAUTION, DELAY, HOLD, or AVOID guidance.",
   },
   {
     title: "Why it helps",
-    body: "A winter drive can be manageable at the start and dangerous later. SnowRoute highlights that timing before you leave.",
+    body: "A drive can be manageable at the start and dangerous later. SnowRoute highlights that timing before you leave.",
   },
   {
     title: "What you see",
@@ -29,11 +29,11 @@ export default function AboutPage() {
           <div className="max-w-3xl space-y-5">
             <p className="eyebrow">About SnowRoute</p>
             <h1 className="display-type text-5xl leading-[0.94] text-white sm:text-6xl">
-              A clearer way to decide on a winter drive.
+              A clearer way to decide before a weather-exposed drive.
             </h1>
             <p className="text-base leading-7 text-slate-300 sm:text-lg">
               SnowRoute is a conservative, explainable planning tool for deciding whether to
-              start, delay, or hold before a dangerous winter stretch.
+              start, delay, or hold before a dangerous stretch of the route.
             </p>
             <Link
               href="/analyze-trip"

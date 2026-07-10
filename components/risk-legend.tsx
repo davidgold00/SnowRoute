@@ -10,7 +10,7 @@ export const RISK_THRESHOLDS: Array<{
     label: "Low",
     range: "0-24",
     colorClass: "bg-emerald-300",
-    description: "Routine winter awareness.",
+    description: "Routine road-weather awareness.",
   },
   {
     label: "Moderate",

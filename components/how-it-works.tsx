@@ -55,9 +55,11 @@ export function HowItWorks() {
             <p className="mt-2 text-sm leading-6 text-slate-300">
               Hourly forecast data comes from Open-Meteo. SnowRoute requests temperature,
               precipitation, snowfall, visibility, wind, gusts, weather codes, and
-              day/night state for the checkpoint coordinates. Times are converted through
-              the relevant local time zone and matched to the closest forecast hour within
-              a two-hour tolerance. Missing matches remain visible as data-quality notes.
+              day/night state for the checkpoint coordinates in supported multi-location
+              batches. Times are converted through the relevant local time zone and matched
+              to the closest forecast hour within a two-hour tolerance. Missing matches
+              remain visible as data-quality notes, and insufficient route coverage blocks
+              a deceptively low-risk result.
             </p>
           </article>
 
@@ -66,11 +68,13 @@ export function HowItWorks() {
               4. Explain the risk
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              The explainable score weighs snowfall, freezing precipitation, temperature,
-              visibility, wind, hazardous weather codes, and night driving. It applies
-              conservative minimums to combinations such as snow plus strong wind plus
-              very low visibility, then labels each checkpoint Low, Moderate, High, or
-              Severe.
+              The versioned, explainable model evaluates snow and blowing snow, freezing
+              precipitation and icing proxies, fog and visibility, wind, heavy rain and
+              hydroplaning proxies, thunderstorms, hail, extreme temperature, and night
+              driving. Related hazards use bounded weights so overlapping signals do not
+              simply stack without limit. Direct forecast signals and inferred proxies are
+              identified separately, and each checkpoint is labeled Low, Moderate, High,
+              or Severe with a confidence assessment.
             </p>
           </article>
 
@@ -79,10 +83,11 @@ export function HowItWorks() {
               5. Compare departure times
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              The departure optimizer replays the route for each hour of the selected day.
-              It compares overall risk, worst checkpoints, hazard-window counts, and
-              forecast coverage. It is a planning comparison, not a guarantee that one
-              hour will remain safe as conditions change.
+              The departure optimizer evaluates eligible future hours while preserving the
+              selected minute and excluding past same-day or invalid daylight-saving-time
+              choices. It compares overall risk, worst checkpoints, hazard-window counts,
+              and forecast coverage. It is a planning comparison, not a guarantee that one
+              hour will remain lower-risk as conditions change.
             </p>
           </article>
 
@@ -108,9 +113,10 @@ export function HowItWorks() {
             The interface runs on Next.js and React. OpenRouteService supplies geocoding
             and route directions; Open-Meteo supplies the hourly weather forecast; Leaflet
             and OpenStreetMap render the route map; Recharts renders the risk timeline;
-            date-fns-tz handles time-zone conversion. SnowRoute does not operate road
-            sensors, dispatch plows, verify closures, or guarantee the conditions at a
-            specific facility.
+            date-fns-tz handles time-zone conversion. Provider credentials stay on the
+            server. SnowRoute does not ingest official alerts, operate road sensors,
+            dispatch plows, verify closures or stopping facilities, or guarantee conditions
+            at a specific location.
           </p>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-cyan-50">
             <a href="https://openrouteservice.org/" target="_blank" rel="noreferrer" className="underline decoration-cyan-100/40 underline-offset-4 hover:text-white">

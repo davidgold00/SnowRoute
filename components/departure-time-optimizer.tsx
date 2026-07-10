@@ -58,8 +58,8 @@ function formatCoverage(option: DepartureTimeOption) {
 }
 
 function buildChartPoints(options: DepartureTimeOption[]) {
-  return options.map((option, index) => {
-    const x = options.length <= 1 ? 50 : (index / (options.length - 1)) * 100;
+  return options.map((option) => {
+    const x = (option.hour / 23) * 100;
     const y = 100 - option.safetyScore;
 
     return {
@@ -110,7 +110,7 @@ export function DepartureTimeOptimizer({
             Departure Optimizer
           </p>
           <h2 className="text-2xl font-semibold tracking-tight text-white">
-            Safest time to leave
+            Lowest-risk time to leave
           </h2>
           <p className="text-sm leading-6 text-slate-300">{optimization.summary}</p>
         </div>
@@ -118,13 +118,13 @@ export function DepartureTimeOptimizer({
         <div className="grid min-w-full grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] text-center sm:min-w-[420px] lg:min-w-[460px]">
           {[
             {
-              label: "Best time",
+              label: "Lowest-risk time",
               value: optimization.isEquallySafe
                 ? "All day"
                 : bestOption?.departureTimeDisplay ?? "n/a",
             },
             {
-              label: "Safety",
+              label: "Risk margin",
               value: bestOption ? bestOption.safetyScore.toString() : "n/a",
             },
             {
@@ -146,7 +146,7 @@ export function DepartureTimeOptimizer({
         <div className="min-w-0 rounded-xl border border-white/10 bg-[#0b1422]/70 p-4">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
-              Safety score by local departure hour
+              Lower-risk score by local departure hour
             </p>
             <div className="flex flex-wrap gap-2">
               {legendItems.map((item) => (
@@ -173,7 +173,7 @@ export function DepartureTimeOptimizer({
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
               role="img"
-              aria-label="Safety score by departure hour"
+              aria-label="Lower-risk score by departure hour"
               className="absolute bottom-9 left-12 right-4 top-5 overflow-visible"
             >
               {[0, 25, 50, 75, 100].map((value) => {
@@ -279,8 +279,8 @@ export function DepartureTimeOptimizer({
             </div>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-300">
-            Safety is scored from 0 to 100; higher is safer. Risk uses the inverse
-            route risk score where higher means more dangerous conditions.
+            Risk margin is 100 minus the modeled route-risk score. A higher margin means
+            lower forecast exposure, not guaranteed safe conditions.
           </p>
         </div>
 
@@ -298,7 +298,7 @@ export function DepartureTimeOptimizer({
                   {focusedOption.departureTimeDisplay}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Safety {focusedOption.safetyScore}/100 • risk{" "}
+                  Risk margin {focusedOption.safetyScore}/100 • modeled risk{" "}
                   {focusedOption.overallScore}/100
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
@@ -331,7 +331,7 @@ export function DepartureTimeOptimizer({
                 >
                   <span className="text-sm font-semibold">{option.departureTimeDisplay}</span>
                   <span className="text-xs uppercase tracking-[0.16em]">
-                    safety {option.safetyScore}/100
+                    margin {option.safetyScore}/100
                   </span>
                 </div>
               ))}

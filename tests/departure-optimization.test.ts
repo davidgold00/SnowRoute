@@ -21,7 +21,7 @@ function createOption(
     averageScore: overrides.averageScore ?? overallScore,
     maxScore: overrides.maxScore ?? overallScore,
     label,
-    recommendation: overrides.recommendation ?? "Safe",
+    recommendation: overrides.recommendation ?? "Lower risk",
     hazardWindowCount: overrides.hazardWindowCount ?? 0,
     severeWindowCount: overrides.severeWindowCount ?? 0,
     forecastCoverageRatio: overrides.forecastCoverageRatio ?? 1,
@@ -54,7 +54,7 @@ describe("departure optimization", () => {
     });
 
     expect(optimization.bestOptionIds).toEqual(["departure-09"]);
-    expect(optimization.summary).toContain("9:00 is the safest");
+    expect(optimization.summary).toContain("9:00 is the lowest-risk");
     expect(optimization.isEquallySafe).toBe(false);
   });
 

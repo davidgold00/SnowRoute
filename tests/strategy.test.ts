@@ -38,6 +38,14 @@ function createAnalysis(): RouteAnalysisResponse {
   const samples = [sample("sample-1", 20, 0), sample("sample-2", 90, 45)];
 
   return {
+    metadata: {
+      analyzedAt: "2026-01-05T13:00:00.000Z",
+      analysisVersion: "route-analysis-2.0.0",
+      riskModelVersion: "risk-model-2.0.0",
+      weatherProvider: "Open-Meteo Forecast API",
+      routeProvider: "openrouteservice Directions API",
+      geocoderProvider: "openrouteservice Geocoding API",
+    },
     route: { coordinates: [], distanceKm: 45, durationMinutes: 60, segments: [] },
     samples,
     hazardWindows: [

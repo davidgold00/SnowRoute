@@ -85,7 +85,7 @@ export function buildDepartureOptimization({
   );
   const coverageNote =
     fullyMatchedOptions.length > 0 && hasIncompleteForecastCoverage
-      ? " Hours with incomplete forecast coverage are still shown, but SnowRoute does not promote them as safest."
+      ? " Hours with incomplete forecast coverage are still shown, but SnowRoute does not promote them as lowest-risk."
       : hasIncompleteForecastCoverage
         ? " Forecast coverage is incomplete for this travel day, so treat the ranking as a planning signal rather than a final go/no-go call."
         : "";
@@ -97,8 +97,8 @@ export function buildDepartureOptimization({
   const summary = isEquallySafe
     ? `All checked departure times on ${travelDateDisplay} are effectively equal for this route.${coverageNote}`
     : bestOptions.length === 1
-      ? `${summaryPrefix}${bestOption.departureTimeDisplay} is the safest checked departure time on ${travelDateDisplay}.${coverageNote}`
-      : `${summaryPrefix}${formatBestTimes(bestDepartureTimeDisplays)} are tied as the safest checked departure times on ${travelDateDisplay}.${coverageNote}`;
+      ? `${summaryPrefix}${bestOption.departureTimeDisplay} is the lowest-risk checked departure time on ${travelDateDisplay}.${coverageNote}`
+      : `${summaryPrefix}${formatBestTimes(bestDepartureTimeDisplays)} are tied as the lowest-risk checked departure times on ${travelDateDisplay}.${coverageNote}`;
 
   return {
     travelDateDisplay,

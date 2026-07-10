@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { AnalyzeTripShell } from "@/components/analyze-trip-shell";
 
 export const metadata: Metadata = {
-  title: "Winter Drive Decision | SnowRoute",
+  title: "Route analysis",
   description:
-    "Analyze a winter drive by arrival time and get a forecast-based go, caution, delay, hold, or avoid recommendation.",
+    "Analyze a drive by arrival time and get forecast-based GO, CAUTION, DELAY, HOLD, or AVOID guidance.",
 };
 
 export default function AnalyzeTripPage() {

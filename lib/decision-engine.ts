@@ -12,7 +12,7 @@ import type {
 } from "@/lib/types";
 
 const SAFETY_DISCLAIMER =
-  "SnowRoute is a forecast-based planning tool, not an official road-safety authority. Check state DOT conditions, closures, chain laws, local advisories, and emergency guidance before winter travel.";
+  "SnowRoute is a forecast-based planning tool, not an official road-safety authority. Check transportation-agency conditions, closures, local advisories, and emergency guidance before travel.";
 
 function riskRank(label: RouteSample["label"]) {
   return label === "Severe" ? 3 : label === "High" ? 2 : label === "Moderate" ? 1 : 0;
@@ -41,8 +41,9 @@ function getCheckpointLabel(sample: RouteSample) {
   return `route checkpoint near ${sample.distanceKm.toFixed(0)} km`;
 }
 
-function getConfidence(summary: RouteSummary, sampleCount: number) {
+function getConfidence(summary: RouteSummary, samples: RouteSample[]) {
   const quality = summary.dataQuality;
+  const sampleCount = samples.length;
   const matchedRatio =
     sampleCount === 0 ? 0 : (sampleCount - quality.unmatchedSamples) / sampleCount;
   const incompleteRatio = sampleCount === 0 ? 1 : quality.incompleteWeatherSamples / sampleCount;
@@ -66,6 +67,40 @@ function getConfidence(summary: RouteSummary, sampleCount: number) {
 
   if (quality.unmatchedSamples > 0) {
     reasons.push(`${quality.unmatchedSamples} checkpoint(s) had no hourly forecast match within two hours.`);
+  }
+
+  const materialSamples = samples.filter(
+    (sample) => sample.score >= Math.max(25, summary.maxScore - 10),
+  );
+  const materialHazards = materialSamples.flatMap((sample) => sample.hazards ?? []).filter(
+    (hazard) =>
+      hazard.scoreContribution >= 10 ||
+      hazard.severity === "MAJOR" ||
+      hazard.severity === "EXTREME" ||
+      hazard.type === "compound_hazard",
+  );
+  const hasLowConfidenceDriver =
+    materialSamples.some((sample) => sample.hazardConfidence === "LOW") ||
+    materialHazards.some((hazard) => hazard.confidence === "LOW");
+  const hasMediumConfidenceDriver =
+    materialSamples.some((sample) => sample.hazardConfidence === "MEDIUM") ||
+    materialHazards.some((hazard) => hazard.confidence === "MEDIUM");
+  const hasInferenceDriver = materialHazards.some(
+    (hazard) => hazard.observedOrForecast === "INFERRED",
+  );
+
+  if (hasLowConfidenceDriver) {
+    confidence = "Low";
+    reasons.push("At least one decision-driving hazard has low forecast or inference confidence.");
+  } else if (hasMediumConfidenceDriver && confidence === "High") {
+    confidence = "Medium";
+    reasons.push("At least one decision-driving hazard has medium forecast or inference confidence.");
+  }
+
+  if (hasInferenceDriver) {
+    reasons.push(
+      "Part of the recommendation is inferred from forecast fields rather than a direct road observation.",
+    );
   }
 
   return { confidence, reasons };
@@ -194,7 +229,7 @@ function buildHoldRecommendation(samples: RouteSample[], windows: HazardWindow[]
     holdBeforeSegmentIndex: holdIndex,
     estimatedArrivalTime: holdPoint.etaDisplay,
     dangerBeginsAround: dangerStart.etaDisplay,
-    reason: `The route is more manageable through ${getCheckpointLabel(holdPoint)}, but ${firstDangerWindow.label.toLowerCase()} winter risk begins ahead around ${dangerStart.etaDisplay}. ${firstDangerWindow.dominantFactors.slice(0, 2).join(" and ")} are the main forecast signals.`,
+    reason: `The route is more manageable through ${getCheckpointLabel(holdPoint)}, but ${firstDangerWindow.label.toLowerCase()} driving risk begins ahead around ${dangerStart.etaDisplay}. ${firstDangerWindow.dominantFactors.slice(0, 2).join(" and ")} are the main forecast signals.`,
     resumeWindow: firstDangerWindow.endEtaDisplay,
     riskIfContinuing: firstDangerWindow.label,
   };
@@ -220,21 +255,21 @@ function buildDecisionCopy({
   switch (decision) {
     case "GO":
       return {
-        label: "Proceed with winter caution",
+        label: "Proceed with ordinary caution",
         summary:
-          "Winter risk appears manageable for this departure based on the available forecast data. Continue to check official road conditions before leaving.",
+          "Forecast-based driving risk appears lower for this departure. Conditions are not guaranteed safe; continue to check official road and weather information before leaving.",
       };
     case "CAUTION":
       return {
         label: "Go with caution",
-        summary: `Expect winter trouble spots near ${getCheckpointLabel(worstSample)} around ${worstSample.etaDisplay}. ${hazardSummary || "Winter factors"} may affect travel.`,
+        summary: `Expect weather-related trouble spots near ${getCheckpointLabel(worstSample)} around ${worstSample.etaDisplay}. ${hazardSummary || "Forecast hazards"} may affect travel.`,
       };
     case "DELAY":
       return {
         label: "Delay recommended",
         summary: saferDeparture
-          ? `A lower-risk departure around ${saferDeparture.departureTime} appears available. Your selected timing reaches ${getCheckpointLabel(worstSample)} during ${hazardSummary || "the highest forecast winter risk"}.`
-          : `This departure reaches ${getCheckpointLabel(worstSample)} during high winter risk. Delaying until conditions improve is recommended.`,
+          ? `A lower-risk departure around ${saferDeparture.departureTime} appears available. Your selected timing reaches ${getCheckpointLabel(worstSample)} during ${hazardSummary || "the highest forecast driving risk"}.`
+          : `This departure reaches ${getCheckpointLabel(worstSample)} during high forecast driving risk. Delaying until conditions improve is recommended.`,
       };
     case "HOLD":
       return {
@@ -246,7 +281,7 @@ function buildDecisionCopy({
     case "AVOID":
       return {
         label: "Avoid this drive during the selected window",
-        summary: `Severe winter risk is forecast near ${getCheckpointLabel(worstSample)} around ${worstSample.etaDisplay}. Verify official closures and advisories before considering travel.`,
+        summary: `Severe driving hazards are forecast near ${getCheckpointLabel(worstSample)} around ${worstSample.etaDisplay}. Verify official warnings, closures, and advisories before considering travel.`,
       };
   }
 }
@@ -266,7 +301,7 @@ export function buildTripDecision({
     (currentWorst, sample) => (sample.score > currentWorst.score ? sample : currentWorst),
     samples[0],
   );
-  const { confidence, reasons: confidenceReasons } = getConfidence(summary, samples.length);
+  const { confidence, reasons: confidenceReasons } = getConfidence(summary, samples);
   const mainHazards = getMainHazards(samples);
   const { selectedOption, windows: saferDepartureWindows } = buildSaferDepartureWindows(
     departureOptimization,

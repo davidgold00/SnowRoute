@@ -5,17 +5,33 @@ import dynamic from "next/dynamic";
 import { startTransition, useEffect, useRef, useState } from "react";
 
 import { HowItWorks } from "@/components/how-it-works";
+import { MapErrorBoundary } from "@/components/map-error-boundary";
 import { DecisionCard } from "@/components/decision-card";
 import {
   DangerWindows,
   HoldGuidance,
   SaferDepartureCard,
-  WinterLimitations,
+  ForecastLimitations,
 } from "@/components/decision-guidance";
-import { RouteForm, type EditableStop } from "@/components/route-form";
+import {
+  RouteForm,
+  type EditableStop,
+  type RouteFormFieldErrors,
+} from "@/components/route-form";
 import { SegmentTable } from "@/components/segment-table";
 import { StrategySuggestions } from "@/components/strategy-suggestions";
 import { SummaryPanel } from "@/components/summary-panel";
+import {
+  consumeGuestTripRestore,
+  createGuestTripHistoryEntry,
+  saveGuestTrip,
+} from "@/lib/guest-trip-history";
+import {
+  createPublicAppError,
+  isApiFailure,
+  isApiSuccess,
+  type PublicAppError,
+} from "@/lib/app-error";
 import {
   MAX_WAYPOINTS,
   canAddWaypoint,
@@ -41,6 +57,8 @@ const RiskTimeline = dynamic(
 );
 
 const TRIP_DRAFT_STORAGE_KEY = "snowroute.tripDraft.v2";
+const TRIP_LAUNCH_STORAGE_KEY = "snowroute.tripLaunch.v1";
+const TRIP_LAUNCH_MAX_AGE_MS = 10 * 60 * 1000;
 
 type TripDraft = {
   origin: EditableStop;
@@ -48,6 +66,11 @@ type TripDraft = {
   waypoints: EditableStop[];
   timeZone: string;
   timeZoneManuallySet: boolean;
+};
+
+type TripLaunch = TripDraft & {
+  departureTimeLocal: string;
+  createdAt: string;
 };
 
 type TripStage = "input" | "analysis" | "strategy";
@@ -86,17 +109,64 @@ function getDefaultDepartureTime() {
   return formatLocalDateTime(date);
 }
 
-function getErrorMessage(payload: unknown) {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "message" in payload &&
-    typeof payload.message === "string"
-  ) {
-    return payload.message;
+function formatTripDuration(totalMinutes: number) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return hours > 0 ? `${hours} hr${hours === 1 ? "" : "s"} ${minutes} min` : `${minutes} min`;
+}
+
+function formatAnalysisTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatPublicError(error: PublicAppError) {
+  const reference = error.correlationId ? ` Reference: ${error.correlationId}.` : "";
+  return `${error.title} ${error.message}${reference}`;
+}
+
+function getRouteFieldErrors(error: PublicAppError): RouteFormFieldErrors {
+  const nextErrors: RouteFormFieldErrors = {};
+
+  for (const field of ["origin", "destination", "departure"] as const) {
+    const fieldError = error.fieldErrors?.[field];
+
+    if (fieldError) {
+      nextErrors[field] = `${fieldError.title} ${fieldError.message}`;
+    }
   }
 
-  return "SnowRoute could not analyze that route.";
+  if (
+    (error.field === "origin" || error.field === "destination" || error.field === "departure") &&
+    !nextErrors[error.field]
+  ) {
+    nextErrors[error.field] = `${error.title} ${error.message}`;
+  }
+
+  return nextErrors;
+}
+
+function isRouteAnalysisResponse(value: unknown): value is RouteAnalysisResponse {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<RouteAnalysisResponse>;
+
+  return Boolean(
+    candidate.metadata?.analyzedAt &&
+      candidate.metadata.riskModelVersion &&
+      candidate.route &&
+      Array.isArray(candidate.route.coordinates) &&
+      Array.isArray(candidate.samples) &&
+      candidate.samples.length > 0 &&
+      candidate.summary &&
+      candidate.departureOptimization &&
+      candidate.tripDecision,
+  );
 }
 
 function loadTripDraft(): TripDraft | null {
@@ -139,11 +209,52 @@ function clearTripDraft() {
   }
 }
 
+function consumeTripLaunch(): TripLaunch | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const storedLaunch = window.sessionStorage.getItem(TRIP_LAUNCH_STORAGE_KEY);
+    window.sessionStorage.removeItem(TRIP_LAUNCH_STORAGE_KEY);
+
+    if (!storedLaunch) {
+      return null;
+    }
+
+    const parsed = JSON.parse(storedLaunch) as Partial<TripLaunch>;
+    const createdAt = typeof parsed.createdAt === "string" ? Date.parse(parsed.createdAt) : NaN;
+
+    if (
+      !parsed.origin?.selected ||
+      !parsed.destination?.selected ||
+      !parsed.departureTimeLocal ||
+      !parsed.timeZone ||
+      !Number.isFinite(createdAt) ||
+      Date.now() - createdAt > TRIP_LAUNCH_MAX_AGE_MS
+    ) {
+      return null;
+    }
+
+    return {
+      origin: parsed.origin,
+      destination: parsed.destination,
+      waypoints: (parsed.waypoints ?? []).slice(0, MAX_WAYPOINTS),
+      timeZone: parsed.timeZone,
+      timeZoneManuallySet: Boolean(parsed.timeZoneManuallySet),
+      departureTimeLocal: parsed.departureTimeLocal,
+      createdAt: parsed.createdAt!,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function AnalyzeTripShell() {
   const [origin, setOrigin] = useState<EditableStop>(() => createStop("origin"));
   const [destination, setDestination] = useState<EditableStop>(() => createStop("destination"));
   const [waypoints, setWaypoints] = useState<EditableStop[]>([]);
-  const [departureTimeLocal, setDepartureTimeLocal] = useState(getDefaultDepartureTime);
+  const [departureTimeLocal, setDepartureTimeLocal] = useState("");
   const [timeZone, setTimeZone] = useState("UTC");
   const [timeZoneManuallySet, setTimeZoneManuallySet] = useState(false);
   const [originTimeZoneSuggestion, setOriginTimeZoneSuggestion] = useState<string | null>(
@@ -153,6 +264,9 @@ export function AnalyzeTripShell() {
   const [activeStage, setActiveStage] = useState<TripStage>("input");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<RouteFormFieldErrors>({});
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+  const [isPlannerReady, setIsPlannerReady] = useState(false);
   const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
   const analyzeAbortRef = useRef<AbortController | null>(null);
   const stageContentRef = useRef<HTMLElement | null>(null);
@@ -160,9 +274,44 @@ export function AnalyzeTripShell() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
+      const restoredTrip = consumeGuestTripRestore();
+      const launchedTrip = consumeTripLaunch();
       const draft = loadTripDraft();
 
-      if (draft) {
+      if (restoredTrip) {
+        setOrigin({
+          id: "origin",
+          query: restoredTrip.origin.label,
+          selected: restoredTrip.origin,
+        });
+        setDestination({
+          id: "destination",
+          query: restoredTrip.destination.label,
+          selected: restoredTrip.destination,
+        });
+        setWaypoints(
+          restoredTrip.waypoints.map((waypoint, index) => ({
+            id: `waypoint-restored-${index + 1}`,
+            query: waypoint.label,
+            selected: waypoint,
+          })),
+        );
+        setTimeZone(restoredTrip.timeZone);
+        setTimeZoneManuallySet(true);
+        setRestoreNotice(
+          "Route restored from trip history. SnowRoute selected a fresh departure time so the next analysis uses current forecast conditions.",
+        );
+      } else if (launchedTrip) {
+        setOrigin(launchedTrip.origin);
+        setDestination(launchedTrip.destination);
+        setWaypoints(launchedTrip.waypoints);
+        setTimeZone(launchedTrip.timeZone);
+        setTimeZoneManuallySet(launchedTrip.timeZoneManuallySet);
+        setDepartureTimeLocal(launchedTrip.departureTimeLocal);
+        setRestoreNotice(
+          "Trip details carried over from the homepage. Review the route and departure before analyzing.",
+        );
+      } else if (draft) {
         setOrigin(draft.origin);
         setDestination(draft.destination);
         setWaypoints(draft.waypoints);
@@ -172,10 +321,13 @@ export function AnalyzeTripShell() {
         setTimeZone(getBrowserTimeZone());
       }
 
-      // Departure time is deliberately never restored. Every visit starts today,
-      // one hour ahead, so a stale plan cannot silently become the active departure.
-      setDepartureTimeLocal(getDefaultDepartureTime());
+      // A deliberate same-session homepage launch keeps its selected time. Drafts and
+      // history restores use a fresh +1 hour departure so stale plans never become active.
+      if (!launchedTrip || restoredTrip) {
+        setDepartureTimeLocal(getDefaultDepartureTime());
+      }
       hasRestoredDraftRef.current = true;
+      setIsPlannerReady(true);
     });
 
     return () => window.cancelAnimationFrame(frame);
@@ -208,6 +360,35 @@ export function AnalyzeTripShell() {
     focusStageContent(stage === "analysis" ? "decision" : undefined);
   }
 
+  function handleStageKeyDown(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    currentStage: TripStage,
+  ) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      return;
+    }
+
+    const availableStages: TripStage[] = analysis
+      ? ["input", "analysis", "strategy"]
+      : ["input"];
+    const currentIndex = Math.max(0, availableStages.indexOf(currentStage));
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? availableStages.length - 1
+          : event.key === "ArrowRight"
+            ? (currentIndex + 1) % availableStages.length
+            : (currentIndex - 1 + availableStages.length) % availableStages.length;
+    const nextStage = availableStages[nextIndex];
+
+    event.preventDefault();
+    selectStage(nextStage);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`trip-stage-${nextStage}`)?.focus();
+    });
+  }
+
   function handleStopChange(
     setter: React.Dispatch<React.SetStateAction<EditableStop>>,
     value: string,
@@ -219,6 +400,18 @@ export function AnalyzeTripShell() {
     }));
   }
 
+  function clearFieldError(field: keyof RouteFormFieldErrors) {
+    setFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
   function handleStopSelect(
     setter: React.Dispatch<React.SetStateAction<EditableStop>>,
     suggestion: LocationSuggestion,
@@ -228,6 +421,7 @@ export function AnalyzeTripShell() {
 
   function handleOriginSelect(suggestion: LocationSuggestion) {
     handleStopSelect(setOrigin, suggestion);
+    clearFieldError("origin");
     const inferredTimeZone = inferTimeZoneFromLocation(suggestion);
 
     setOriginTimeZoneSuggestion(
@@ -245,6 +439,7 @@ export function AnalyzeTripShell() {
     setTimeZone(nextTimeZone);
     setTimeZoneManuallySet(true);
     setOriginTimeZoneSuggestion(null);
+    clearFieldError("departure");
   }
 
   function handleUseOriginTimeZone() {
@@ -268,7 +463,18 @@ export function AnalyzeTripShell() {
     setAnalysis(null);
     setActiveSampleId(null);
     setAnalysisError(null);
+    setFieldErrors({});
+    setRestoreNotice(null);
     setActiveStage("input");
+  }
+
+  function handleCancelAnalysis() {
+    analyzeAbortRef.current?.abort();
+    analyzeAbortRef.current = null;
+    setIsSubmitting(false);
+    setAnalysisError(null);
+    setFieldErrors({});
+    setRestoreNotice("Analysis cancelled. Your trip details were kept.");
   }
 
   function handleUseSuggestedDeparture(departureTimeUtc: string) {
@@ -276,6 +482,7 @@ export function AnalyzeTripShell() {
       formatInTimeZone(new Date(departureTimeUtc), timeZone, "yyyy-MM-dd'T'HH:mm"),
     );
     setAnalysisError(null);
+    clearFieldError("departure");
     selectStage("input");
   }
 
@@ -289,10 +496,24 @@ export function AnalyzeTripShell() {
     const hasIncompleteWaypoint = waypoints.some(
       (waypoint) => waypoint.query.trim().length > 0 && !waypoint.selected,
     );
+    const localFieldErrors: RouteFormFieldErrors = {
+      ...(!origin.selected
+        ? { origin: "Choose a verified suggestion for the starting location." }
+        : {}),
+      ...(!destination.selected
+        ? { destination: "Choose a verified suggestion for the destination." }
+        : {}),
+      ...(!departureTimeLocal
+        ? { departure: "Choose a complete departure date and time." }
+        : {}),
+    };
 
     if (!origin.selected || !destination.selected || !departureTimeLocal || hasIncompleteWaypoint) {
+      setFieldErrors(localFieldErrors);
       setAnalysisError(
-        "Select autocomplete suggestions for each stop and choose a departure time before analyzing.",
+        hasIncompleteWaypoint
+          ? "Choose a verified autocomplete suggestion for every stop before analyzing."
+          : "Correct the highlighted trip details before analyzing.",
       );
       return;
     }
@@ -300,12 +521,15 @@ export function AnalyzeTripShell() {
     const departureDate = fromZonedTime(departureTimeLocal, timeZone);
 
     if (Number.isNaN(departureDate.getTime())) {
+      setFieldErrors({ departure: "Choose a complete, valid departure date and time." });
       setAnalysisError("Departure time is not valid yet. Choose a new date and time.");
       return;
     }
 
     setIsSubmitting(true);
     setAnalysisError(null);
+    setFieldErrors({});
+    setRestoreNotice(null);
     analyzeAbortRef.current?.abort();
     const abortController = new AbortController();
     analyzeAbortRef.current = abortController;
@@ -325,17 +549,55 @@ export function AnalyzeTripShell() {
           clientTimeZone: timeZone,
         }),
       });
-      const payload = (await response.json()) as RouteAnalysisResponse | { message: string };
+      const payload: unknown = await response.json().catch(() => null);
 
-      if (!response.ok) {
-        throw new Error(getErrorMessage(payload));
+      if (!response.ok || isApiFailure(payload)) {
+        const publicError = isApiFailure(payload)
+          ? payload.error
+          : createPublicAppError("INTERNAL_ANALYSIS_ERROR");
+        setFieldErrors(getRouteFieldErrors(publicError));
+        setAnalysisError(formatPublicError(publicError));
+        return;
       }
 
-      const nextAnalysis = payload as RouteAnalysisResponse;
+      if (!isApiSuccess<RouteAnalysisResponse>(payload) || !isRouteAnalysisResponse(payload.data)) {
+        const publicError = createPublicAppError("INTERNAL_ANALYSIS_ERROR");
+        setAnalysisError(formatPublicError(publicError));
+        return;
+      }
+
+      const nextAnalysis = payload.data;
       const highestRiskSample = nextAnalysis.samples.reduce(
         (current, sample) => (sample.score > current.score ? sample : current),
         nextAnalysis.samples[0],
       );
+
+      void saveGuestTrip(
+        createGuestTripHistoryEntry({
+          origin: origin.selected,
+          destination: destination.selected,
+          waypoints: waypoints.flatMap((waypoint) =>
+            waypoint.selected ? [waypoint.selected] : [],
+          ),
+          departureTimeLocal,
+          departureTimeUtc: departureDate.toISOString(),
+          timeZone,
+          decision: nextAnalysis.tripDecision.decision,
+          decisionLabel: nextAnalysis.tripDecision.decisionLabel,
+          decisionSummary: nextAnalysis.tripDecision.decisionSummary,
+          overallRisk: nextAnalysis.tripDecision.overallRisk,
+          confidence: nextAnalysis.tripDecision.confidence,
+          mainHazards: nextAnalysis.tripDecision.mainHazards,
+          worstSegmentRisk: nextAnalysis.tripDecision.worstSegmentRisk,
+          worstSegmentLocationLabel: nextAnalysis.tripDecision.worstSegmentLocationLabel,
+          worstSegmentArrivalTime: nextAnalysis.tripDecision.worstSegmentArrivalTime,
+          riskModelVersion: nextAnalysis.metadata.riskModelVersion,
+          distanceKm: nextAnalysis.route.distanceKm,
+          durationMinutes: nextAnalysis.route.durationMinutes,
+        }, {
+          analyzedAt: new Date(nextAnalysis.metadata.analyzedAt),
+        }),
+      ).catch(() => undefined);
 
       startTransition(() => {
         setAnalysis(nextAnalysis);
@@ -345,8 +607,14 @@ export function AnalyzeTripShell() {
       focusStageContent("decision");
     } catch (error) {
       if (!abortController.signal.aborted) {
+        const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+        const publicError = createPublicAppError(
+          isOffline ? "NETWORK_OFFLINE" : "INTERNAL_ANALYSIS_ERROR",
+        );
         setAnalysisError(
-          error instanceof Error ? error.message : "SnowRoute could not analyze that route right now.",
+          error instanceof Error && error.message
+            ? `${publicError.title} ${publicError.message}`
+            : formatPublicError(publicError),
         );
       }
     } finally {
@@ -374,7 +642,7 @@ export function AnalyzeTripShell() {
           <div className="max-w-3xl space-y-3">
             <p className="eyebrow">Analyze a trip</p>
             <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              Know whether this winter drive is smart to start.
+              Know whether this drive is smart to start.
             </h1>
             <p className="max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
               SnowRoute matches forecast conditions to your arrival time, then gives a
@@ -402,6 +670,8 @@ export function AnalyzeTripShell() {
                 aria-controls="trip-stage-content"
                 disabled={isUnavailable}
                 onClick={() => selectStage(stage.id)}
+                onKeyDown={(event) => handleStageKeyDown(event, stage.id)}
+                tabIndex={isActive ? 0 : -1}
                 className={`flex min-h-16 items-center gap-3 rounded-xl px-3 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45 ${
                   isActive
                     ? "bg-cyan-300/[0.14] shadow-[inset_0_0_0_1px_rgba(186,230,253,0.3)]"
@@ -447,6 +717,15 @@ export function AnalyzeTripShell() {
         >
           {activeStage === "input" ? (
             <div className="space-y-5">
+              {restoreNotice ? (
+                <section
+                  role="status"
+                  className="rounded-2xl border border-cyan-100/18 bg-cyan-300/[0.06] px-5 py-4 text-sm leading-6 text-cyan-50"
+                >
+                  {restoreNotice}
+                </section>
+              ) : null}
+
               {analysis ? (
                 <section className="rounded-2xl border border-cyan-100/15 bg-cyan-300/[0.06] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
                   <div>
@@ -465,7 +744,7 @@ export function AnalyzeTripShell() {
                 </section>
               ) : null}
 
-              <RouteForm
+              {isPlannerReady ? <RouteForm
                 origin={origin}
                 destination={destination}
                 waypoints={waypoints}
@@ -473,13 +752,21 @@ export function AnalyzeTripShell() {
                 timeZone={timeZone}
                 originTimeZoneSuggestion={originTimeZoneSuggestion}
                 isSubmitting={isSubmitting}
+                fieldErrors={fieldErrors}
                 onOriginChange={(value) => {
                   handleStopChange(setOrigin, value);
                   setOriginTimeZoneSuggestion(null);
+                  clearFieldError("origin");
                 }}
                 onOriginSelect={handleOriginSelect}
-                onDestinationChange={(value) => handleStopChange(setDestination, value)}
-                onDestinationSelect={(suggestion) => handleStopSelect(setDestination, suggestion)}
+                onDestinationChange={(value) => {
+                  handleStopChange(setDestination, value);
+                  clearFieldError("destination");
+                }}
+                onDestinationSelect={(suggestion) => {
+                  handleStopSelect(setDestination, suggestion);
+                  clearFieldError("destination");
+                }}
                 onWaypointChange={(id, value) => {
                   setWaypoints((currentWaypoints) =>
                     currentWaypoints.map((waypoint) =>
@@ -515,7 +802,10 @@ export function AnalyzeTripShell() {
                     currentWaypoints.filter((waypoint) => waypoint.id !== id),
                   );
                 }}
-                onDepartureTimeChange={setDepartureTimeLocal}
+                onDepartureTimeChange={(value) => {
+                  setDepartureTimeLocal(value);
+                  clearFieldError("departure");
+                }}
                 onTimeZoneChange={handleTimeZoneChange}
                 onUseOriginTimeZone={handleUseOriginTimeZone}
                 onDismissOriginTimeZone={() => {
@@ -523,8 +813,18 @@ export function AnalyzeTripShell() {
                   setTimeZoneManuallySet(true);
                 }}
                 onClearTrip={handleClearTrip}
+                onCancelAnalysis={handleCancelAnalysis}
                 onSubmit={handleAnalyze}
-              />
+              /> : (
+                <section aria-label="Preparing route planner" className="glass-panel min-h-[520px] rounded-2xl p-6 motion-safe:animate-pulse">
+                  <div className="h-6 w-52 rounded bg-white/[0.08]" />
+                  <div className="mt-8 grid gap-4 lg:grid-cols-2">
+                    <div className="h-24 rounded-xl bg-white/[0.05]" />
+                    <div className="h-24 rounded-xl bg-white/[0.05]" />
+                  </div>
+                  <div className="mt-6 h-44 rounded-xl bg-white/[0.05]" />
+                </section>
+              )}
             </div>
           ) : null}
 
@@ -540,6 +840,24 @@ export function AnalyzeTripShell() {
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
                       Departure: {departureTimeLocal.replace("T", " at ")} • {timeZone}
                     </p>
+                    <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold text-slate-300">Distance</dt>
+                        <dd>{Math.round(analysis.route.distanceKm)} km</dd>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold text-slate-300">Estimated drive</dt>
+                        <dd>{formatTripDuration(analysis.route.durationMinutes)}</dd>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold text-slate-300">Analyzed</dt>
+                        <dd><time dateTime={analysis.metadata.analyzedAt}>{formatAnalysisTime(analysis.metadata.analyzedAt)}</time></dd>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold text-slate-300">Model</dt>
+                        <dd>{analysis.metadata.riskModelVersion}</dd>
+                      </div>
+                    </dl>
                   </div>
                   <div className="flex flex-wrap gap-3">
                     <button
@@ -584,7 +902,11 @@ export function AnalyzeTripShell() {
                 </div>
 
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.68fr)]">
-                  <div className="min-w-0"><RouteMap analysis={analysis} activeSampleId={activeSampleId} onSelectSample={setActiveSampleId} /></div>
+                  <div className="min-w-0">
+                    <MapErrorBoundary>
+                      <RouteMap analysis={analysis} activeSampleId={activeSampleId} onSelectSample={setActiveSampleId} />
+                    </MapErrorBoundary>
+                  </div>
                   <div className="min-w-0"><SummaryPanel analysis={analysis} /></div>
                 </div>
 
@@ -600,7 +922,7 @@ export function AnalyzeTripShell() {
                 </div>
               </section>
 
-              <WinterLimitations decision={analysis.tripDecision} />
+              <ForecastLimitations decision={analysis.tripDecision} />
             </section>
           ) : null}
 

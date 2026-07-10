@@ -54,7 +54,7 @@ export function DangerWindows({ decision }: { decision: TripDecision }) {
       <div>
         <p className="eyebrow">Danger windows</p>
         <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-          Where winter conditions are expected to worsen
+          Where driving conditions are expected to worsen
         </h3>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
           These are route-relative forecast windows, matched to when you are expected to
@@ -125,7 +125,7 @@ export function HoldGuidance({ decision }: { decision: TripDecision }) {
   );
 }
 
-export function WinterLimitations({ decision }: { decision: TripDecision }) {
+export function ForecastLimitations({ decision }: { decision: TripDecision }) {
   return (
     <section id="limitations" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5 sm:p-6">
       <p className="eyebrow">Forecast and road limits</p>

@@ -161,7 +161,7 @@ describe("risk scoring", () => {
 
     expect(risk.score).toBeGreaterThan(0);
     expect(risk.explanationFactors[0]).toBe("Thunderstorm with hail can make travel erratic");
-    expect(risk.guidance.impact).toContain("winter factors");
+    expect(risk.guidance.impact).toContain("road-weather hazards");
   });
 
   it("treats snow, wind, and near-whiteout visibility as severe", () => {

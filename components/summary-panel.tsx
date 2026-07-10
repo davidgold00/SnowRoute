@@ -67,7 +67,7 @@ export function SummaryPanel({
           {[
             "Overall trip score blended from route average and worst segment.",
             "Hazard windows merged across brief low-risk gaps to avoid noisy alerts.",
-            "Transparent factor explanations for snow, ice, visibility, wind, and night driving.",
+            "Transparent factor explanations for snow, ice, rain, storms, visibility, wind, and night driving.",
           ].map((item) => (
             <div
               key={item}
@@ -98,7 +98,7 @@ export function SummaryPanel({
               {analysis.summary.overallScore}
             </h2>
             <p className="mt-2 text-sm text-slate-300">
-              overall winter driving risk out of 100
+              overall forecast driving risk out of 100
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
