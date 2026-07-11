@@ -117,8 +117,8 @@ describe("weather-hold strategies", () => {
 
     expect(strategy.holdPoint.id).toBe("sample-1");
     expect(strategy.hazardStart.id).toBe("sample-2");
-    expect(strategy.likelihood).toBeGreaterThanOrEqual(75);
-    expect(strategy.likelihoodLabel).toBe("High");
+    expect(strategy.indicatorScore).toBeGreaterThanOrEqual(75);
+    expect(strategy.indicatorLabel).toBe("High");
     expect(strategy.evidence).toContain("0.6 km forecast visibility");
   });
 

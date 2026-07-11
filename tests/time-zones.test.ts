@@ -5,6 +5,7 @@ import {
   canAddWaypoint,
   filterTimeZoneOptions,
   getBrowserTimeZone,
+  getDefaultDepartureTimeLocal,
   inferTimeZoneFromLocation,
   shouldOfferOriginTimeZoneSwitch,
 } from "../lib/time-zones";
@@ -47,6 +48,17 @@ describe("trip planning helpers", () => {
   it("uses the browser time zone when available", () => {
     expect(getBrowserTimeZone("America/Toronto")).toBe("America/Toronto");
     expect(getBrowserTimeZone("", "UTC")).toBe("UTC");
+  });
+
+  it("creates a fresh one-hour-ahead default in the selected origin time zone", () => {
+    const now = new Date("2026-07-11T07:50:00.000Z");
+
+    expect(getDefaultDepartureTimeLocal("America/New_York", now)).toBe(
+      "2026-07-11T05:00",
+    );
+    expect(getDefaultDepartureTimeLocal("America/Los_Angeles", now)).toBe(
+      "2026-07-11T02:00",
+    );
   });
 
   it("searches time zones by city and region", () => {

@@ -1,11 +1,11 @@
 import type { HazardWindow, RouteAnalysisResponse, RouteSample } from "@/lib/types";
 
-export type HoldLikelihood = "Monitor" | "Elevated" | "High";
+export type HoldIndicatorLevel = "Monitor" | "Elevated" | "High";
 
 export type WeatherHoldStrategy = {
   id: string;
-  likelihood: number;
-  likelihoodLabel: HoldLikelihood;
+  indicatorScore: number;
+  indicatorLabel: HoldIndicatorLevel;
   holdPoint: RouteSample;
   hazardStart: RouteSample;
   worstSample: RouteSample;
@@ -18,12 +18,12 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-function getLikelihoodLabel(likelihood: number): HoldLikelihood {
-  if (likelihood >= 75) {
+function getIndicatorLabel(score: number): HoldIndicatorLevel {
+  if (score >= 75) {
     return "High";
   }
 
-  if (likelihood >= 55) {
+  if (score >= 55) {
     return "Elevated";
   }
 
@@ -70,24 +70,24 @@ function buildEvidence(sample: RouteSample) {
     : sample.explanationFactors.slice(0, 3);
 }
 
-function estimateHoldLikelihood(sample: RouteSample, window: HazardWindow) {
+function estimateHoldIndicator(sample: RouteSample, window: HazardWindow) {
   const { weather } = sample;
-  let likelihood = window.maxScore * 0.7;
+  let score = window.maxScore * 0.7;
 
   if (weather.visibilityKm !== null) {
     if (weather.visibilityKm <= 0.8) {
-      likelihood += 12;
+      score += 12;
     } else if (weather.visibilityKm <= 1.6) {
-      likelihood += 8;
+      score += 8;
     }
   }
 
   if (weather.windGustKph !== null && weather.windGustKph >= 45) {
-    likelihood += 8;
+    score += 8;
   }
 
   if (weather.snowfallCm !== null && weather.snowfallCm > 0.5) {
-    likelihood += 6;
+    score += 6;
   }
 
   if (
@@ -96,22 +96,22 @@ function estimateHoldLikelihood(sample: RouteSample, window: HazardWindow) {
     weather.temperatureC <= 1 &&
     (weather.precipitationMm ?? 0) > 0.1
   ) {
-    likelihood += 10;
+    score += 10;
   }
 
   if (window.label === "Severe") {
-    likelihood += 8;
+    score += 8;
   }
 
-  return Math.round(clamp(likelihood, 30, 95));
+  return Math.round(clamp(score, 30, 95));
 }
 
-function buildAction(likelihood: number) {
-  if (likelihood >= 75) {
+function buildAction(indicatorScore: number) {
+  if (indicatorScore >= 75) {
     return "Plan a weather hold before this checkpoint. Confirm a staffed service area, rest area, or other legal off-road location before entering the flagged stretch; do not continue into rapidly worsening visibility to search for one.";
   }
 
-  if (likelihood >= 55) {
+  if (indicatorScore >= 55) {
     return "Identify a legal off-road stopping option before this checkpoint and reassess conditions there. If observed visibility or traction is deteriorating faster than forecast, wait for improvement rather than pressing into the flagged stretch.";
   }
 
@@ -120,8 +120,8 @@ function buildAction(likelihood: number) {
 
 /**
  * Turns high-risk forecast windows into conservative, route-relative decision points.
- * The percentage is an operational planning indicator derived from the app's risk
- * model and forecast inputs; it is not a calibrated crash or road-closure probability.
+ * The 0–100 indicator is derived from the app's risk model and forecast inputs;
+ * it is not a calibrated probability of a crash, closure, or required stop.
  */
 export function buildWeatherHoldStrategies(
   analysis: RouteAnalysisResponse,
@@ -143,19 +143,19 @@ export function buildWeatherHoldStrategies(
       (currentWorst, sample) => (sample.score > currentWorst.score ? sample : currentWorst),
       hazardStart,
     );
-    const likelihood = estimateHoldLikelihood(worstSample, window);
+    const indicatorScore = estimateHoldIndicator(worstSample, window);
 
     return [
       {
         id: `weather-hold-${window.id}`,
-        likelihood,
-        likelihoodLabel: getLikelihoodLabel(likelihood),
+        indicatorScore,
+        indicatorLabel: getIndicatorLabel(indicatorScore),
         holdPoint,
         hazardStart,
         worstSample,
         window,
         evidence: buildEvidence(worstSample),
-        action: buildAction(likelihood),
+        action: buildAction(indicatorScore),
       },
     ];
   });

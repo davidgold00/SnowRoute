@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { HowItWorks } from "@/components/how-it-works";
+
 export const metadata: Metadata = {
   title: "About",
   description: "How SnowRoute turns route-specific weather forecasts into drive, delay, hold, or avoid guidance.",
@@ -51,6 +53,13 @@ export default function AboutPage() {
               <p className="mt-3 text-sm leading-6 text-slate-300">{section.body}</p>
             </article>
           ))}
+        </section>
+
+        <section className="mt-6" aria-labelledby="methodology-heading">
+          <h2 id="methodology-heading" className="sr-only">
+            Methodology and data sources
+          </h2>
+          <HowItWorks />
         </section>
       </div>
     </main>

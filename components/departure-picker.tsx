@@ -1,6 +1,9 @@
 "use client";
 
+import { formatInTimeZone } from "date-fns-tz";
 import { useEffect, useMemo, useRef } from "react";
+
+import { getDefaultDepartureTimeLocal } from "@/lib/time-zones";
 
 const FORECAST_DAY_COUNT = 15;
 const TIME_STEP_MINUTES = 15;
@@ -19,7 +22,7 @@ function pad(value: number) {
 }
 
 function formatDateInputValue(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
 function parseDateValue(value: string) {
@@ -29,18 +32,18 @@ function parseDateValue(value: string) {
     return null;
   }
 
-  const date = new Date(year, month - 1, day);
+  const date = new Date(Date.UTC(year, month - 1, day));
 
-  return date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
     ? date
     : null;
 }
 
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
   return nextDate;
 }
 
@@ -48,23 +51,42 @@ function roundUpToStep(minutes: number) {
   return Math.min(23 * 60 + 45, Math.ceil(minutes / TIME_STEP_MINUTES) * TIME_STEP_MINUTES);
 }
 
-function getMinimumMinutesForDate(dateValue: string) {
-  if (dateValue !== formatDateInputValue(new Date())) {
+function getCurrentLocalParts(timeZone: string, now = new Date()) {
+  let value: string;
+
+  try {
+    value = formatInTimeZone(now, timeZone, "yyyy-MM-dd'T'HH:mm");
+  } catch {
+    value = formatInTimeZone(now, "UTC", "yyyy-MM-dd'T'HH:mm");
+  }
+
+  const [dateValue, clockValue = "00:00"] = value.split("T");
+  const [hours = 0, minutes = 0] = clockValue.split(":").map(Number);
+
+  return { dateValue, minutes: hours * 60 + minutes };
+}
+
+function getMinimumMinutesForDate(dateValue: string, timeZone: string) {
+  const current = getCurrentLocalParts(timeZone);
+
+  if (dateValue !== current.dateValue) {
     return 0;
   }
 
-  const now = new Date();
-  return roundUpToStep(now.getHours() * 60 + now.getMinutes() + TIME_STEP_MINUTES);
+  return roundUpToStep(current.minutes + TIME_STEP_MINUTES);
 }
 
-function parseLocalDateTime(value: string) {
+function parseLocalDateTime(value: string, timeZone: string) {
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
 
   if (!match) {
-    const date = new Date();
+    const fallback = getDefaultDepartureTimeLocal(timeZone);
+    const fallbackMatch = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(fallback);
+
     return {
-      dateValue: formatDateInputValue(date),
-      minutes: roundUpToStep(date.getHours() * 60 + date.getMinutes() + 60),
+      dateValue: fallbackMatch?.[1] ?? getCurrentLocalParts(timeZone).dateValue,
+      minutes:
+        Number(fallbackMatch?.[2] ?? 0) * 60 + Number(fallbackMatch?.[3] ?? 0),
     };
   }
 
@@ -89,8 +111,11 @@ function formatClock(minutes: number) {
 }
 
 function formatMonth(monthIndex: number) {
-  return new Intl.DateTimeFormat(undefined, { month: "long" }).format(
-    new Date(2026, monthIndex, 1),
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    timeZone: "UTC",
+  }).format(
+    new Date(Date.UTC(2026, monthIndex, 1)),
   );
 }
 
@@ -103,6 +128,7 @@ function formatSelectedDate(dateValue: string) {
         month: "short",
         day: "numeric",
         year: "numeric",
+        timeZone: "UTC",
       }).format(date)
     : dateValue;
 }
@@ -116,34 +142,38 @@ export function DeparturePicker({
   onChange,
 }: DeparturePickerProps) {
   const timeSelectRef = useRef<HTMLSelectElement>(null);
-  const { dateValue, minutes } = parseLocalDateTime(value);
+  const { dateValue, minutes } = parseLocalDateTime(value, timeZone);
   const dateOptions = useMemo(
     () => {
-      const now = new Date();
+      const current = getCurrentLocalParts(timeZone);
+      const firstDate = parseDateValue(current.dateValue) ?? new Date();
       const nextSlotMinutes = Math.ceil(
-        (now.getHours() * 60 + now.getMinutes() + TIME_STEP_MINUTES) / TIME_STEP_MINUTES,
+        (current.minutes + TIME_STEP_MINUTES) / TIME_STEP_MINUTES,
       ) * TIME_STEP_MINUTES;
       const startOffset = nextSlotMinutes > 23 * 60 + 45 ? 1 : 0;
 
       return Array.from({ length: FORECAST_DAY_COUNT - startOffset }, (_, index) => {
-        const date = addDays(now, index + startOffset);
+        const date = addDays(firstDate, index + startOffset);
         return {
           dateValue: formatDateInputValue(date),
-          year: date.getFullYear(),
-          month: date.getMonth(),
-          day: date.getDate(),
+          year: date.getUTCFullYear(),
+          month: date.getUTCMonth(),
+          day: date.getUTCDate(),
         };
       });
     },
-    [],
+    [timeZone],
   );
   const effectiveDateValue = dateOptions.some((option) => option.dateValue === dateValue)
     ? dateValue
     : dateOptions[0]?.dateValue ?? dateValue;
-  const selectedDate = parseDateValue(effectiveDateValue) ?? new Date();
-  const selectedYear = selectedDate.getFullYear();
-  const selectedMonth = selectedDate.getMonth();
-  const selectedDay = selectedDate.getDate();
+  const selectedDate =
+    parseDateValue(effectiveDateValue) ??
+    parseDateValue(getCurrentLocalParts(timeZone).dateValue) ??
+    new Date();
+  const selectedYear = selectedDate.getUTCFullYear();
+  const selectedMonth = selectedDate.getUTCMonth();
+  const selectedDay = selectedDate.getUTCDate();
   const yearOptions = Array.from(new Set(dateOptions.map((option) => option.year)));
   const monthOptions = Array.from(
     new Set(
@@ -155,7 +185,7 @@ export function DeparturePicker({
   const dayOptions = dateOptions.filter(
     (option) => option.year === selectedYear && option.month === selectedMonth,
   );
-  const minimumMinutes = getMinimumMinutesForDate(effectiveDateValue);
+  const minimumMinutes = getMinimumMinutesForDate(effectiveDateValue, timeZone);
   const selectedMinutes = Math.max(minutes, minimumMinutes);
   const timeOptions = Array.from(
     { length: 24 * (60 / TIME_STEP_MINUTES) },
@@ -176,7 +206,7 @@ export function DeparturePicker({
     onChange(
       buildLocalDateTimeValue(
         nextDateValue,
-        Math.max(getMinimumMinutesForDate(nextDateValue), nextMinutes),
+        Math.max(getMinimumMinutesForDate(nextDateValue, timeZone), nextMinutes),
       ),
     );
   }
@@ -207,7 +237,7 @@ export function DeparturePicker({
   }
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
@@ -222,7 +252,7 @@ export function DeparturePicker({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
           Time
           <select

@@ -1,19 +1,29 @@
-import type {
-  ForecastConfidence,
-  LocationSuggestion,
-  RiskLabel,
-  TripDecisionLevel,
+import {
+  citiesAreEquivalent,
+  createRouteEndpointSelection,
+} from "@/lib/route-location-state";
+import {
+  routeEndpointSelectionSchema,
+  type ForecastConfidence,
+  type LocationSuggestion,
+  type RiskLabel,
+  type RouteEndpointSelection,
+  type TripDecisionLevel,
 } from "@/lib/types";
 
 export const GUEST_TRIP_HISTORY_LIMIT = 20;
 
-const HISTORY_VERSION = 1 as const;
+const HISTORY_VERSION = 2 as const;
+const LEGACY_HISTORY_VERSION = 1 as const;
 const DATABASE_NAME = "snowroute-local-data";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const HISTORY_STORE_NAME = "trip-history";
-const LOCAL_STORAGE_KEY = "snowroute.guestTripHistory.v1";
-const RESTORE_STORAGE_KEY = "snowroute.tripHistoryRestore.v1";
+const LOCAL_STORAGE_KEY = "snowroute.guestTripHistory.v2";
+const LEGACY_LOCAL_STORAGE_KEY = "snowroute.guestTripHistory.v1";
+const RESTORE_STORAGE_KEY = "snowroute.tripHistoryRestore.v2";
+const LEGACY_RESTORE_STORAGE_KEY = "snowroute.tripHistoryRestore.v1";
 const HISTORY_CHANGED_EVENT = "snowroute:guest-history-changed";
+const LEGACY_GEOCODER_PROVIDER = "openrouteservice Geocoding API";
 
 const DECISIONS: TripDecisionLevel[] = ["GO", "CAUTION", "DELAY", "HOLD", "AVOID"];
 const RISK_LABELS: RiskLabel[] = ["Low", "Moderate", "High", "Severe"];
@@ -46,14 +56,7 @@ const LOCATION_PRECISIONS: Array<NonNullable<LocationSuggestion["precision"]>> =
   "unknown",
 ];
 
-export type GuestTripHistoryEntry = {
-  version: typeof HISTORY_VERSION;
-  id: string;
-  fingerprint: string;
-  analyzedAt: string;
-  origin: LocationSuggestion;
-  destination: LocationSuggestion;
-  waypoints: LocationSuggestion[];
+type GuestTripAnalysisFields = {
   departureTimeLocal: string;
   departureTimeUtc: string;
   timeZone: string;
@@ -71,15 +74,43 @@ export type GuestTripHistoryEntry = {
   durationMinutes: number;
 };
 
-export type NewGuestTripHistoryEntry = Omit<
-  GuestTripHistoryEntry,
-  "version" | "id" | "fingerprint" | "analyzedAt"
->;
+export type GuestTripHistoryEntry = GuestTripAnalysisFields & {
+  version: typeof HISTORY_VERSION;
+  id: string;
+  fingerprint: string;
+  analyzedAt: string;
+  originEndpoint: RouteEndpointSelection | null;
+  destinationEndpoint: RouteEndpointSelection | null;
+  legacyOrigin: LocationSuggestion | null;
+  legacyDestination: LocationSuggestion | null;
+  sameCity: boolean;
+  requiresCityConfirmation: boolean;
+  waypoints: LocationSuggestion[];
+  geocoderProvider: string;
+};
+
+export type NewGuestTripHistoryEntry = GuestTripAnalysisFields & {
+  originEndpoint: RouteEndpointSelection;
+  destinationEndpoint: RouteEndpointSelection;
+  sameCity: boolean;
+  waypoints: LocationSuggestion[];
+  geocoderProvider: string;
+};
 
 type HistoryEnvelope = {
   version: typeof HISTORY_VERSION;
   entries: GuestTripHistoryEntry[];
 };
+
+type FingerprintInput = Pick<
+  GuestTripHistoryEntry,
+  | "originEndpoint"
+  | "destinationEndpoint"
+  | "legacyOrigin"
+  | "legacyDestination"
+  | "sameCity"
+  | "waypoints"
+>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -89,23 +120,46 @@ function isFiniteCoordinate(value: unknown, min: number, max: number): value is 
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 }
 
-function optionalStringOrNull(value: unknown) {
-  return typeof value === "string" ? value.slice(0, 240) : null;
+function boundedString(value: unknown, maxLength: number) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const cleaned = value.trim();
+  return cleaned ? cleaned.slice(0, maxLength) : null;
 }
 
-function parseLocation(value: unknown): LocationSuggestion | null {
+function optionalStringOrNull(value: unknown, maxLength = 240) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) || null : null;
+}
+
+function syntheticLegacyLocationId(label: string, lat: number, lon: number) {
+  const normalizedLabel = label
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+
+  return `legacy-${lat.toFixed(5)}-${lon.toFixed(5)}-${normalizedLabel || "location"}`;
+}
+
+function parseLegacyLocation(value: unknown): LocationSuggestion | null {
   if (
     !isRecord(value) ||
-    typeof value.id !== "string" ||
     typeof value.label !== "string" ||
     !isFiniteCoordinate(value.lat, -90, 90) ||
-    !isFiniteCoordinate(value.lon, -180, 180) ||
-    !PLACE_TYPES.includes(value.placeType as LocationSuggestion["placeType"])
+    !isFiniteCoordinate(value.lon, -180, 180)
   ) {
     return null;
   }
 
-  const label = value.label.slice(0, 240);
+  const label = value.label.trim().slice(0, 240);
+
+  if (!label) {
+    return null;
+  }
+
   const locationType = LOCATION_TYPES.includes(
     value.locationType as NonNullable<LocationSuggestion["locationType"]>,
   )
@@ -116,6 +170,13 @@ function parseLocation(value: unknown): LocationSuggestion | null {
   )
     ? (value.precision as NonNullable<LocationSuggestion["precision"]>)
     : "unknown";
+  const placeType = PLACE_TYPES.includes(value.placeType as LocationSuggestion["placeType"])
+    ? (value.placeType as LocationSuggestion["placeType"])
+    : locationType === "city"
+      ? "City"
+      : locationType === "region"
+        ? "Region"
+        : "Place";
   const providerConfidence =
     typeof value.providerConfidence === "number" &&
     Number.isFinite(value.providerConfidence) &&
@@ -125,26 +186,23 @@ function parseLocation(value: unknown): LocationSuggestion | null {
       : null;
 
   return {
-    id: value.id.slice(0, 240),
+    id:
+      boundedString(value.id, 240) ??
+      syntheticLegacyLocationId(label, value.lat, value.lon),
     providerId: optionalStringOrNull(value.providerId),
     label,
-    formattedAddress:
-      typeof value.formattedAddress === "string"
-        ? value.formattedAddress.slice(0, 240)
-        : label,
+    formattedAddress: boundedString(value.formattedAddress, 240) ?? label,
     primaryLabel:
-      typeof value.primaryLabel === "string"
-        ? value.primaryLabel.slice(0, 180)
-        : label.split(",")[0]?.trim() || label,
+      boundedString(value.primaryLabel, 180) ?? label.split(",")[0]?.trim() ?? label,
     lat: value.lat,
     lon: value.lon,
     locality: optionalStringOrNull(value.locality),
-    country: optionalStringOrNull(value.country),
-    countryCode: optionalStringOrNull(value.countryCode),
-    region: optionalStringOrNull(value.region),
-    postalCode: optionalStringOrNull(value.postalCode),
+    country: optionalStringOrNull(value.country, 160),
+    countryCode: optionalStringOrNull(value.countryCode, 8)?.toUpperCase() ?? null,
+    region: optionalStringOrNull(value.region, 160),
+    postalCode: optionalStringOrNull(value.postalCode, 32),
     detail: optionalStringOrNull(value.detail),
-    placeType: value.placeType as LocationSuggestion["placeType"],
+    placeType,
     locationType,
     precision,
     isApproximate:
@@ -155,49 +213,53 @@ function parseLocation(value: unknown): LocationSuggestion | null {
   };
 }
 
-function createLocationFingerprint(location: LocationSuggestion) {
-  return `${location.lat.toFixed(5)},${location.lon.toFixed(5)}`;
-}
+function parseEndpoint(value: unknown): RouteEndpointSelection | null {
+  const parsed = routeEndpointSelectionSchema.safeParse(value);
 
-export function createGuestTripFingerprint(
-  origin: LocationSuggestion,
-  destination: LocationSuggestion,
-  waypoints: LocationSuggestion[] = [],
-) {
-  return [origin, ...waypoints, destination].map(createLocationFingerprint).join("|");
-}
-
-export function parseGuestTripHistoryEntry(value: unknown): GuestTripHistoryEntry | null {
-  if (!isRecord(value) || value.version !== HISTORY_VERSION) {
+  if (!parsed.success) {
     return null;
   }
 
-  const origin = parseLocation(value.origin);
-  const destination = parseLocation(value.destination);
-  const waypoints = (Array.isArray(value.waypoints)
-    ? value.waypoints.map(parseLocation).filter((item): item is LocationSuggestion => item !== null)
-    : []).slice(0, 2);
+  return createRouteEndpointSelection(parsed.data.city, parsed.data.place ?? null);
+}
+
+function parseWaypoints(value: unknown) {
+  return (Array.isArray(value)
+    ? value
+        .map(parseLegacyLocation)
+        .filter((item): item is LocationSuggestion => item !== null)
+    : []
+  ).slice(0, 2);
+}
+
+function parseStoredAnalysisFields(value: Record<string, unknown>) {
+  const id = boundedString(value.id, 180);
   const analyzedAtMs = typeof value.analyzedAt === "string" ? Date.parse(value.analyzedAt) : NaN;
+  const departureTimeUtcMs =
+    typeof value.departureTimeUtc === "string" ? Date.parse(value.departureTimeUtc) : NaN;
+  const departureTimeLocal = boundedString(value.departureTimeLocal, 32);
+  const timeZone = boundedString(value.timeZone, 120);
+  const decisionLabel = boundedString(value.decisionLabel, 120);
+  const decisionSummary = boundedString(value.decisionSummary, 600);
+  const worstSegmentLocationLabel = boundedString(value.worstSegmentLocationLabel, 240);
+  const worstSegmentArrivalTime = boundedString(value.worstSegmentArrivalTime, 160);
+  const riskModelVersion = boundedString(value.riskModelVersion, 80);
 
   if (
-    !origin ||
-    !destination ||
-    typeof value.id !== "string" ||
-    !value.id ||
+    !id ||
     !Number.isFinite(analyzedAtMs) ||
-    typeof value.departureTimeLocal !== "string" ||
-    typeof value.departureTimeUtc !== "string" ||
-    !Number.isFinite(Date.parse(value.departureTimeUtc)) ||
-    typeof value.timeZone !== "string" ||
+    !departureTimeLocal ||
+    !Number.isFinite(departureTimeUtcMs) ||
+    !timeZone ||
     !DECISIONS.includes(value.decision as TripDecisionLevel) ||
-    typeof value.decisionLabel !== "string" ||
-    typeof value.decisionSummary !== "string" ||
+    !decisionLabel ||
+    !decisionSummary ||
     !RISK_LABELS.includes(value.overallRisk as RiskLabel) ||
     !CONFIDENCE_LEVELS.includes(value.confidence as ForecastConfidence) ||
     !RISK_LABELS.includes(value.worstSegmentRisk as RiskLabel) ||
-    typeof value.worstSegmentLocationLabel !== "string" ||
-    typeof value.worstSegmentArrivalTime !== "string" ||
-    typeof value.riskModelVersion !== "string" ||
+    !worstSegmentLocationLabel ||
+    !worstSegmentArrivalTime ||
+    !riskModelVersion ||
     typeof value.distanceKm !== "number" ||
     !Number.isFinite(value.distanceKm) ||
     value.distanceKm < 0 ||
@@ -208,37 +270,205 @@ export function parseGuestTripHistoryEntry(value: unknown): GuestTripHistoryEntr
     return null;
   }
 
-  const fingerprint = createGuestTripFingerprint(origin, destination, waypoints);
-
   return {
-    version: HISTORY_VERSION,
-    id: value.id.slice(0, 180),
-    fingerprint,
+    id,
     analyzedAt: new Date(analyzedAtMs).toISOString(),
-    origin,
-    destination,
-    waypoints,
-    departureTimeLocal: value.departureTimeLocal.slice(0, 32),
-    departureTimeUtc: new Date(value.departureTimeUtc).toISOString(),
-    timeZone: value.timeZone.slice(0, 120),
+    departureTimeLocal,
+    departureTimeUtc: new Date(departureTimeUtcMs).toISOString(),
+    timeZone,
     decision: value.decision as TripDecisionLevel,
-    decisionLabel: value.decisionLabel.slice(0, 120),
-    decisionSummary: value.decisionSummary.slice(0, 600),
+    decisionLabel,
+    decisionSummary,
     overallRisk: value.overallRisk as RiskLabel,
     confidence: value.confidence as ForecastConfidence,
     mainHazards: Array.isArray(value.mainHazards)
       ? value.mainHazards
           .filter((item): item is string => typeof item === "string")
           .slice(0, 5)
-          .map((item) => item.slice(0, 160))
+          .map((item) => item.trim().slice(0, 160))
+          .filter(Boolean)
       : [],
     worstSegmentRisk: value.worstSegmentRisk as RiskLabel,
-    worstSegmentLocationLabel: value.worstSegmentLocationLabel.slice(0, 240),
-    worstSegmentArrivalTime: value.worstSegmentArrivalTime.slice(0, 160),
-    riskModelVersion: value.riskModelVersion.slice(0, 80),
+    worstSegmentLocationLabel,
+    worstSegmentArrivalTime,
+    riskModelVersion,
     distanceKm: value.distanceKm,
     durationMinutes: value.durationMinutes,
+  } satisfies GuestTripAnalysisFields & { id: string; analyzedAt: string };
+}
+
+function normalizeFingerprintText(value: string) {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/\s+/g, " ")
+    .slice(0, 160);
+}
+
+function endpointFingerprint(endpoint: RouteEndpointSelection) {
+  const selectedIdentity = endpoint.place
+    ? endpoint.place.providerId ?? normalizeFingerprintText(endpoint.place.formattedAddress)
+    : endpoint.city.providerId ?? normalizeFingerprintText(endpoint.city.displayName);
+
+  return [
+    endpoint.usesCityFallback ? "city" : "place",
+    selectedIdentity,
+    endpoint.effectiveLatitude.toFixed(5),
+    endpoint.effectiveLongitude.toFixed(5),
+  ].join(":");
+}
+
+function legacyLocationFingerprint(location: LocationSuggestion) {
+  return [
+    "legacy",
+    location.providerId ?? normalizeFingerprintText(location.label),
+    location.lat.toFixed(5),
+    location.lon.toFixed(5),
+  ].join(":");
+}
+
+function waypointFingerprint(location: LocationSuggestion) {
+  return [
+    location.providerId ?? normalizeFingerprintText(location.label),
+    location.lat.toFixed(5),
+    location.lon.toFixed(5),
+  ].join(":");
+}
+
+export function createGuestTripFingerprint(input: FingerprintInput) {
+  const origin = input.originEndpoint
+    ? endpointFingerprint(input.originEndpoint)
+    : input.legacyOrigin
+      ? legacyLocationFingerprint(input.legacyOrigin)
+      : "missing-origin";
+  const destination = input.destinationEndpoint
+    ? endpointFingerprint(input.destinationEndpoint)
+    : input.legacyDestination
+      ? legacyLocationFingerprint(input.legacyDestination)
+      : "missing-destination";
+
+  return [
+    `same-city:${input.sameCity ? "yes" : "no"}`,
+    origin,
+    ...input.waypoints.map((waypoint) => `stop:${waypointFingerprint(waypoint)}`),
+    destination,
+  ].join("|");
+}
+
+function buildParsedEntry({
+  storedFields,
+  originEndpoint,
+  destinationEndpoint,
+  legacyOrigin,
+  legacyDestination,
+  sameCity,
+  waypoints,
+  geocoderProvider,
+}: {
+  storedFields: NonNullable<ReturnType<typeof parseStoredAnalysisFields>>;
+  originEndpoint: RouteEndpointSelection | null;
+  destinationEndpoint: RouteEndpointSelection | null;
+  legacyOrigin: LocationSuggestion | null;
+  legacyDestination: LocationSuggestion | null;
+  sameCity: boolean;
+  waypoints: LocationSuggestion[];
+  geocoderProvider: string;
+}): GuestTripHistoryEntry {
+  const requiresCityConfirmation = !originEndpoint || !destinationEndpoint;
+  const fingerprintInput: FingerprintInput = {
+    originEndpoint,
+    destinationEndpoint,
+    legacyOrigin,
+    legacyDestination,
+    sameCity,
+    waypoints,
   };
+
+  return {
+    version: HISTORY_VERSION,
+    ...storedFields,
+    ...fingerprintInput,
+    fingerprint: createGuestTripFingerprint(fingerprintInput),
+    requiresCityConfirmation,
+    geocoderProvider,
+  };
+}
+
+function parseVersionTwoEntry(value: Record<string, unknown>) {
+  const storedFields = parseStoredAnalysisFields(value);
+  const originEndpoint = parseEndpoint(value.originEndpoint);
+  const destinationEndpoint = parseEndpoint(value.destinationEndpoint);
+  const legacyOrigin = parseLegacyLocation(value.legacyOrigin);
+  const legacyDestination = parseLegacyLocation(value.legacyDestination);
+  const hasStructuredEndpoints = Boolean(originEndpoint && destinationEndpoint);
+  const hasLegacyEndpoints = Boolean(legacyOrigin && legacyDestination);
+  const geocoderProvider = boundedString(value.geocoderProvider, 80);
+
+  if (
+    !storedFields ||
+    typeof value.sameCity !== "boolean" ||
+    !geocoderProvider ||
+    hasStructuredEndpoints === hasLegacyEndpoints
+  ) {
+    return null;
+  }
+
+  if (
+    hasStructuredEndpoints &&
+    value.sameCity &&
+    !citiesAreEquivalent(originEndpoint!.city, destinationEndpoint!.city)
+  ) {
+    return null;
+  }
+
+  return buildParsedEntry({
+    storedFields,
+    originEndpoint: hasStructuredEndpoints ? originEndpoint : null,
+    destinationEndpoint: hasStructuredEndpoints ? destinationEndpoint : null,
+    legacyOrigin: hasLegacyEndpoints ? legacyOrigin : null,
+    legacyDestination: hasLegacyEndpoints ? legacyDestination : null,
+    sameCity: value.sameCity,
+    waypoints: parseWaypoints(value.waypoints),
+    geocoderProvider,
+  });
+}
+
+function parseVersionOneEntry(value: Record<string, unknown>) {
+  const storedFields = parseStoredAnalysisFields(value);
+  const legacyOrigin = parseLegacyLocation(value.origin);
+  const legacyDestination = parseLegacyLocation(value.destination);
+
+  if (!storedFields || !legacyOrigin || !legacyDestination) {
+    return null;
+  }
+
+  return buildParsedEntry({
+    storedFields,
+    originEndpoint: null,
+    destinationEndpoint: null,
+    legacyOrigin,
+    legacyDestination,
+    sameCity: false,
+    waypoints: parseWaypoints(value.waypoints),
+    geocoderProvider: LEGACY_GEOCODER_PROVIDER,
+  });
+}
+
+export function parseGuestTripHistoryEntry(value: unknown): GuestTripHistoryEntry | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (value.version === HISTORY_VERSION) {
+    return parseVersionTwoEntry(value);
+  }
+
+  if (value.version === LEGACY_HISTORY_VERSION) {
+    return parseVersionOneEntry(value);
+  }
+
+  return null;
 }
 
 export function normalizeGuestTripHistory(
@@ -252,15 +482,17 @@ export function normalizeGuestTripHistory(
   const seenFingerprints = new Set<string>();
   const seenIds = new Set<string>();
 
-  return parsedEntries.filter((entry) => {
-    if (seenFingerprints.has(entry.fingerprint) || seenIds.has(entry.id)) {
-      return false;
-    }
+  return parsedEntries
+    .filter((entry) => {
+      if (seenFingerprints.has(entry.fingerprint) || seenIds.has(entry.id)) {
+        return false;
+      }
 
-    seenFingerprints.add(entry.fingerprint);
-    seenIds.add(entry.id);
-    return true;
-  }).slice(0, Math.max(0, limit));
+      seenFingerprints.add(entry.fingerprint);
+      seenIds.add(entry.id);
+      return true;
+    })
+    .slice(0, Math.max(0, limit));
 }
 
 export function mergeGuestTripHistory(
@@ -288,7 +520,13 @@ export function deserializeGuestTripHistory(value: string | null) {
   try {
     const parsed = JSON.parse(value) as unknown;
 
-    if (!isRecord(parsed) || parsed.version !== HISTORY_VERSION || !Array.isArray(parsed.entries)) {
+    if (
+      !isRecord(parsed) ||
+      ![HISTORY_VERSION, LEGACY_HISTORY_VERSION].includes(
+        parsed.version as typeof HISTORY_VERSION,
+      ) ||
+      !Array.isArray(parsed.entries)
+    ) {
       return [];
     }
 
@@ -310,15 +548,55 @@ export function createGuestTripHistoryEntry(
   entry: NewGuestTripHistoryEntry,
   options: { id?: string; analyzedAt?: Date } = {},
 ): GuestTripHistoryEntry {
-  const analyzedAt = options.analyzedAt ?? new Date();
+  const originEndpoint = parseEndpoint(entry.originEndpoint);
+  const destinationEndpoint = parseEndpoint(entry.destinationEndpoint);
 
-  return {
+  if (!originEndpoint || !destinationEndpoint) {
+    throw new Error("Structured route endpoints are required for new trip history entries.");
+  }
+
+  const candidate = {
     ...entry,
     version: HISTORY_VERSION,
     id: options.id ?? createHistoryId(),
-    fingerprint: createGuestTripFingerprint(entry.origin, entry.destination, entry.waypoints),
-    analyzedAt: analyzedAt.toISOString(),
+    analyzedAt: (options.analyzedAt ?? new Date()).toISOString(),
+    originEndpoint,
+    destinationEndpoint,
+    legacyOrigin: null,
+    legacyDestination: null,
+    requiresCityConfirmation: false,
   };
+  const parsed = parseGuestTripHistoryEntry(candidate);
+
+  if (!parsed || parsed.requiresCityConfirmation) {
+    throw new Error("The trip history entry is invalid.");
+  }
+
+  return parsed;
+}
+
+export function getGuestTripLocationLabel(
+  entry: GuestTripHistoryEntry,
+  endpoint: "origin" | "destination",
+) {
+  if (endpoint === "origin") {
+    return entry.originEndpoint?.effectiveDisplayName ?? entry.legacyOrigin?.label ?? "Starting location";
+  }
+
+  return (
+    entry.destinationEndpoint?.effectiveDisplayName ??
+    entry.legacyDestination?.label ??
+    "Destination"
+  );
+}
+
+export function guestTripUsesCityFallback(
+  entry: GuestTripHistoryEntry,
+  endpoint: "origin" | "destination",
+) {
+  return endpoint === "origin"
+    ? Boolean(entry.originEndpoint?.usesCityFallback)
+    : Boolean(entry.destinationEndpoint?.usesCityFallback);
 }
 
 function requestResult<T>(request: IDBRequest<T>) {
@@ -331,8 +609,10 @@ function requestResult<T>(request: IDBRequest<T>) {
 function transactionComplete(transaction: IDBTransaction) {
   return new Promise<void>((resolve, reject) => {
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Browser storage transaction failed."));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Browser storage transaction was aborted."));
+    transaction.onerror = () =>
+      reject(transaction.error ?? new Error("Browser storage transaction failed."));
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error("Browser storage transaction was aborted."));
   });
 }
 
@@ -351,6 +631,8 @@ function openHistoryDatabase() {
       if (!database.objectStoreNames.contains(HISTORY_STORE_NAME)) {
         database.createObjectStore(HISTORY_STORE_NAME, { keyPath: "id" });
       }
+      // Version 2 changes only the validated record shape. Existing records stay in
+      // the store and are normalized transactionally after the first successful read.
     };
     request.onsuccess = () => {
       const database = request.result;
@@ -368,9 +650,14 @@ async function readIndexedHistory() {
   try {
     const transaction = database.transaction(HISTORY_STORE_NAME, "readonly");
     const completed = transactionComplete(transaction);
-    const entries = await requestResult(transaction.objectStore(HISTORY_STORE_NAME).getAll());
+    const rawEntries = await requestResult(transaction.objectStore(HISTORY_STORE_NAME).getAll());
     await completed;
-    return normalizeGuestTripHistory(entries);
+    const entries = normalizeGuestTripHistory(rawEntries);
+    const needsMigration =
+      rawEntries.length !== entries.length ||
+      rawEntries.some((entry) => !isRecord(entry) || entry.version !== HISTORY_VERSION);
+
+    return { entries, needsMigration };
   } finally {
     database.close();
   }
@@ -396,11 +683,17 @@ function readLocalHistory() {
     return [];
   }
 
-  try {
-    return deserializeGuestTripHistory(window.localStorage.getItem(LOCAL_STORAGE_KEY));
-  } catch {
-    return [];
+  const entries: GuestTripHistoryEntry[] = [];
+
+  for (const key of [LOCAL_STORAGE_KEY, LEGACY_LOCAL_STORAGE_KEY]) {
+    try {
+      entries.push(...deserializeGuestTripHistory(window.localStorage.getItem(key)));
+    } catch {
+      // A blocked key must not prevent reading the other compatibility key.
+    }
   }
+
+  return normalizeGuestTripHistory(entries);
 }
 
 function replaceLocalHistory(entries: GuestTripHistoryEntry[]) {
@@ -409,12 +702,17 @@ function replaceLocalHistory(entries: GuestTripHistoryEntry[]) {
   }
 
   window.localStorage.setItem(LOCAL_STORAGE_KEY, serializeGuestTripHistory(entries));
+  window.localStorage.removeItem(LEGACY_LOCAL_STORAGE_KEY);
 }
 
 function clearLocalHistory() {
-  if (typeof window !== "undefined") {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  for (const key of [LOCAL_STORAGE_KEY, LEGACY_LOCAL_STORAGE_KEY]) {
     try {
-      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+      window.localStorage.removeItem(key);
     } catch {
       // A blocked localStorage should not make IndexedDB history unusable.
     }
@@ -428,19 +726,27 @@ function notifyHistoryChanged() {
 }
 
 export async function listGuestTrips() {
-  try {
-    const indexedEntries = await readIndexedHistory();
-    const localEntries = readLocalHistory();
-    const mergedEntries = normalizeGuestTripHistory([...indexedEntries, ...localEntries]);
+  const localEntries = readLocalHistory();
 
-    if (localEntries.length > 0) {
-      await replaceIndexedHistory(mergedEntries);
-      clearLocalHistory();
+  try {
+    const indexedResult = await readIndexedHistory();
+    const mergedEntries = normalizeGuestTripHistory([
+      ...indexedResult.entries,
+      ...localEntries,
+    ]);
+
+    if (indexedResult.needsMigration || localEntries.length > 0) {
+      try {
+        await replaceIndexedHistory(mergedEntries);
+        clearLocalHistory();
+      } catch {
+        // Return the successfully parsed records and leave the old source intact for retry.
+      }
     }
 
     return mergedEntries;
   } catch {
-    return readLocalHistory();
+    return localEntries;
   }
 }
 
@@ -454,9 +760,9 @@ export async function saveGuestTrip(entry: GuestTripHistoryEntry) {
   let nextEntries: GuestTripHistoryEntry[];
 
   try {
-    const indexedEntries = await readIndexedHistory();
+    const indexedResult = await readIndexedHistory();
     nextEntries = mergeGuestTripHistory(
-      normalizeGuestTripHistory([...indexedEntries, ...readLocalHistory()]),
+      normalizeGuestTripHistory([...indexedResult.entries, ...readLocalHistory()]),
       parsedEntry,
     );
     await replaceIndexedHistory(nextEntries);
@@ -488,11 +794,12 @@ export async function deleteGuestTrip(id: string) {
 export async function clearGuestTrips() {
   try {
     await replaceIndexedHistory([]);
-    clearLocalHistory();
   } catch {
-    clearLocalHistory();
+    // Clearing the active local fallback still honors the user's request when
+    // IndexedDB is unavailable in this browser session.
   }
 
+  clearLocalHistory();
   notifyHistoryChanged();
 }
 
@@ -502,7 +809,7 @@ export function subscribeToGuestHistory(listener: () => void) {
   }
 
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === LOCAL_STORAGE_KEY) {
+    if ([LOCAL_STORAGE_KEY, LEGACY_LOCAL_STORAGE_KEY].includes(event.key ?? "")) {
       listener();
     }
   };
@@ -516,14 +823,55 @@ export function subscribeToGuestHistory(listener: () => void) {
   };
 }
 
+function removeRestoreValues(storage: Storage) {
+  for (const key of [RESTORE_STORAGE_KEY, LEGACY_RESTORE_STORAGE_KEY]) {
+    try {
+      storage.removeItem(key);
+    } catch {
+      // Continue clearing the remaining compatibility key.
+    }
+  }
+}
+
+function consumeRestoreValue(storage: Storage) {
+  let restoredEntry: GuestTripHistoryEntry | null = null;
+
+  for (const key of [RESTORE_STORAGE_KEY, LEGACY_RESTORE_STORAGE_KEY]) {
+    try {
+      const serializedEntry = storage.getItem(key);
+      storage.removeItem(key);
+
+      if (!serializedEntry || restoredEntry) {
+        continue;
+      }
+
+      restoredEntry = parseGuestTripHistoryEntry(
+        JSON.parse(serializedEntry) as unknown,
+      );
+    } catch {
+      // Try the remaining key so a malformed legacy payload cannot block v2.
+    }
+  }
+
+  return restoredEntry;
+}
+
 export function queueGuestTripRestore(entry: GuestTripHistoryEntry) {
   if (typeof window === "undefined") {
     return false;
   }
 
-  const serializedEntry = JSON.stringify(entry);
+  const parsedEntry = parseGuestTripHistoryEntry(entry);
+
+  if (!parsedEntry) {
+    return false;
+  }
+
+  const serializedEntry = JSON.stringify(parsedEntry);
 
   try {
+    removeRestoreValues(window.sessionStorage);
+    removeRestoreValues(window.localStorage);
     window.sessionStorage.setItem(RESTORE_STORAGE_KEY, serializedEntry);
     return true;
   } catch {
@@ -541,29 +889,20 @@ export function consumeGuestTripRestore() {
     return null;
   }
 
-  let serializedEntry: string | null = null;
+  let sessionEntry: GuestTripHistoryEntry | null = null;
+  let localEntry: GuestTripHistoryEntry | null = null;
 
   try {
-    serializedEntry = window.sessionStorage.getItem(RESTORE_STORAGE_KEY);
-    window.sessionStorage.removeItem(RESTORE_STORAGE_KEY);
+    sessionEntry = consumeRestoreValue(window.sessionStorage);
   } catch {
     // Fall through to localStorage when sessionStorage is unavailable.
   }
 
   try {
-    serializedEntry ??= window.localStorage.getItem(RESTORE_STORAGE_KEY);
-    window.localStorage.removeItem(RESTORE_STORAGE_KEY);
+    localEntry = consumeRestoreValue(window.localStorage);
   } catch {
-    // Return null below if neither browser storage mechanism is available.
+    // Return the session value, if any, when localStorage is unavailable.
   }
 
-  if (!serializedEntry) {
-    return null;
-  }
-
-  try {
-    return parseGuestTripHistoryEntry(JSON.parse(serializedEntry) as unknown);
-  } catch {
-    return null;
-  }
+  return sessionEntry ?? localEntry;
 }

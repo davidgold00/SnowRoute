@@ -12,8 +12,30 @@ import {
 import { normalizeLocationQuery } from "@/lib/location";
 import type { LocationSuggestion } from "@/lib/types";
 
-const searchCache = new Map<string, LocationSuggestion[]>();
+type CachedSuggestions = {
+  suggestions: LocationSuggestion[];
+  expiresAt: number;
+};
+
+const searchCache = new Map<string, CachedSuggestions>();
 const SEARCH_CACHE_MAX_ENTRIES = 100;
+const POSITIVE_CACHE_TTL_MS = 15 * 60 * 1000;
+const NEGATIVE_CACHE_TTL_MS = 30 * 1000;
+
+function getCachedSuggestions(cacheKey: string) {
+  const cached = searchCache.get(cacheKey);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    searchCache.delete(cacheKey);
+    return null;
+  }
+
+  return cached.suggestions;
+}
 
 export type GeocodeSearchStatus =
   | "idle"
@@ -59,8 +81,8 @@ export function useGeocodeSearch(query: string, enabled = true) {
   const cacheKey = debouncedQuery.toLocaleLowerCase();
   const isSettledQuery = normalizedQuery.toLocaleLowerCase() === cacheKey;
   const isActiveQuery = enabled && isSettledQuery && debouncedQuery.length >= 2;
-  const hasCachedSuggestions = isActiveQuery && searchCache.has(cacheKey);
-  const cachedSuggestions = hasCachedSuggestions ? searchCache.get(cacheKey) ?? [] : null;
+  const cachedSuggestions = isActiveQuery ? getCachedSuggestions(cacheKey) : null;
+  const hasCachedSuggestions = cachedSuggestions !== null;
 
   useEffect(() => {
     if (!isActiveQuery || hasCachedSuggestions) {
@@ -111,7 +133,12 @@ export function useGeocodeSearch(query: string, enabled = true) {
             searchCache.delete(oldestKey);
           }
         }
-        searchCache.set(cacheKey, payload.data);
+        searchCache.set(cacheKey, {
+          suggestions: payload.data,
+          expiresAt:
+            Date.now() +
+            (payload.data.length > 0 ? POSITIVE_CACHE_TTL_MS : NEGATIVE_CACHE_TTL_MS),
+        });
         setSearchResult({
           cacheKey,
           suggestions: payload.data,
@@ -169,6 +196,9 @@ export function useGeocodeSearch(query: string, enabled = true) {
     isLoading: status === "resolving",
     error: isActiveQuery ? activeError : null,
     status,
-    retrySearch: () => setRetryNonce((current) => current + 1),
+    retrySearch: () => {
+      searchCache.delete(cacheKey);
+      setRetryNonce((current) => current + 1);
+    },
   };
 }

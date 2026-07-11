@@ -6,13 +6,13 @@ The application is designed to support a decision, not make one for the driver. 
 
 ## Current release status
 
-This branch includes the SnowRoute2 guest experience, multi-hazard analysis, local trip history, typed API errors, server-side provider access, security headers, and optional distributed rate limiting.
+This branch includes the SnowRoute2 guest experience, city-first endpoint search, multi-hazard analysis, local trip history, typed API errors, server-side provider access, security headers, and optional distributed rate limiting.
 
 Account and cloud-persistence work is intentionally **not operational**. The repository contains an account-readiness screen and a PostgreSQL schema foundation, but there is no runtime database adapter, OIDC callback/session implementation, authenticated trip API, or guest-to-account importer. Setting database or authentication environment variables does not enable accounts. See [Database and account readiness](docs/DATABASE.md).
 
 ## What SnowRoute does
 
-- Resolves suggested addresses and places through openrouteservice geocoding.
+- Resolves a confirmed city first, then searches optional addresses, businesses, landmarks, airports, transit locations, streets, intersections, and postal areas in that context.
 - Builds a drivable route, including up to two optional stops.
 - Samples checkpoints across the route and estimates an arrival time at each one.
 - Matches each checkpoint to Open-Meteo hourly temperature, precipitation, snowfall, visibility, wind, gust, weather-code, and day/night data.
@@ -111,7 +111,7 @@ The planner separates a trip into three clear views:
 2. **Analysis** — decision, confidence, danger windows, route map, route checkpoints, and hourly departure comparison.
 3. **Suggestions** — shown only after the user selects **See suggestions**; offers formal, route-relative strategy and potential pre-hazard hold points.
 
-A fresh visit defaults to approximately one hour ahead of the current time. Location drafts may be retained for convenience, but a previous departure timestamp is not reused. Editing a selected suggestion invalidates its stored coordinates until a new result is selected.
+A fresh visit defaults to approximately one hour ahead of the current time. Location drafts may be retained for convenience, but a previous departure timestamp is not reused. Each endpoint requires a selected city; its exact place is optional. Leaving the place blank explicitly uses the provider's approximate city point. Editing a selected city or place invalidates its stored coordinates and dependent fields until another result is selected.
 
 The homepage has a compact trip launcher. It passes a short-lived trip draft through browser session storage to the full planner; it does not call providers directly from the browser.
 
@@ -119,7 +119,9 @@ The homepage has a compact trip launcher. It passes a short-lived trip draft thr
 
 ### openrouteservice
 
-The server calls openrouteservice for both address/place suggestions and `driving-car` directions. Provider identifiers, address components, precision classifications, and approximation flags are normalized before reaching the client. The API key is never sent to browser code.
+The server calls the openrouteservice-hosted Pelias geocoder for city autocomplete, structured address search, and focused place fallback, then uses openrouteservice `driving-car` directions. Provider identifiers, address components, city relationship, precision, and approximation flags are normalized before reaching the client. The API key is sent only in server-side authorization headers.
+
+The hosted geocoder is not part of the versioned openrouteservice core, and SnowRoute does not pin or discover its Pelias version. Exact results and upstream ranking can change independently. See [Location search](docs/LOCATION_SEARCH.md) for contracts, query stages, caches, and limitations.
 
 ### Open-Meteo
 
@@ -166,17 +168,18 @@ Guest history is local-first and optional:
 
 - IndexedDB is the primary store; localStorage is a compatibility fallback.
 - At most 20 unique route summaries are retained, newest first.
-- A repeat analysis of the same coordinate sequence replaces the older summary.
-- Entries contain normalized route labels/coordinates, departure information, compact decision fields, model version, and timestamps—not raw provider responses or full forecast payloads.
+- A repeat analysis of the same structured route intent replaces the older summary; exact-place and city-fallback routes remain distinct even at the same coordinates.
+- Version-2 entries contain validated city/place endpoints, effective coordinates, fallback/same-city flags, departure information, compact decision fields, provider/model versions, and timestamps—not raw provider responses or full forecast payloads.
 - Users can delete one trip or clear all history.
 - **Analyze again** restores route inputs but deliberately chooses a fresh default departure, because an old forecast is stale.
+- Legacy version-1 history remains readable, but its city selections are not invented; cities must be reconfirmed before re-analysis.
 - Clearing site data, private-browsing behavior, or browser storage policy can remove the history.
 
 Precise routes can reveal home, work, and travel patterns. Guest data remains in the current browser and is not uploaded or synchronized by this implementation.
 
 ## API behavior
 
-Public route handlers validate input on the server and return stable internal error codes rather than raw provider messages. Successful geocode and analysis calls use:
+Public route handlers validate input on the server and return stable internal error codes rather than raw provider messages. City search uses `POST /api/locations/cities`; contextual place search uses `POST /api/locations/places`; `POST /api/geocode` remains for waypoints/compatibility. Successful search and analysis calls use:
 
 ```json
 {
@@ -195,17 +198,17 @@ Failures use:
 {
   "ok": false,
   "error": {
-    "code": "DESTINATION_NOT_FOUND",
-    "title": "We couldn’t find the destination.",
-    "message": "Choose a suggested address or enter a more complete location.",
-    "field": "destination",
-    "retryable": false,
+    "code": "GEOCODER_UNAVAILABLE",
+    "title": "Location search is temporarily unavailable.",
+    "message": "Your entry is preserved. Try the search again in a moment.",
+    "field": "general",
+    "retryable": true,
     "correlationId": "SR-…"
   }
 }
 ```
 
-Field-specific errors can be returned for origin and destination together. Expected status classes include `400` invalid input, `422` resolvable request with invalid route/location semantics, `429` rate limited, `502` invalid/upstream response, `503` unavailable or misconfigured, and `504` provider timeout. Technical context and stack traces stay in structured server logs.
+The internal taxonomy can target starting/destination city or place independently, while legacy origin/destination fields remain supported by the analysis contract. Current search handlers use `INVALID_REQUEST` for request-schema failures and stable `GEOCODER_*` codes for upstream failures; form selection errors are resolved locally before analysis. Expected status classes include `400` invalid input, `413` declared body too large, `422` valid structure with unresolved/invalid route semantics, `429` rate limited, `502` invalid upstream response, `503` unavailable or misconfigured, and `504` provider timeout. Technical context and stack traces stay in structured server logs.
 
 `GET /api/health` reports application and route-key configuration readiness without calling paid/external providers or revealing secrets. It is a shallow health check, not proof that providers are currently reachable.
 
@@ -213,7 +216,8 @@ Field-specific errors can be returned for origin and destination together. Expec
 
 - `app/` — pages, layouts, error boundaries, and API route handlers
 - `components/` — planner, results, navigation, map, charts, suggestions, and history UI
-- `hooks/` — debounced/cancellable search and guest-history state
+- `hooks/` — debounced/cancellable city/place search and guest-history state
+- `lib/geocoding.ts`, `lib/location.ts`, and `lib/route-location-state.ts` — provider staging, normalization/ranking, effective endpoints, and dependent location state
 - `lib/analysis.ts` — route-analysis orchestration
 - `lib/hazard-engine.ts` — versioned multi-hazard detection and scoring
 - `lib/risk.ts` and `lib/decision-engine.ts` — route aggregation and decision guidance
@@ -231,14 +235,16 @@ Field-specific errors can be returned for origin and destination together. Expec
 - Confirm response security headers and Content Security Policy against the deployed origin.
 - Run tests, lint, and a production build.
 - Review provider quotas, logs, timeout behavior, and privacy disclosures.
+- Smoke-test the hosted Pelias city, structured-address, unit/postal fallback, outside-city, and city-fallback paths; the geocoder version is not pinned.
 - Do not enable account controls until managed PostgreSQL, OIDC, secure sessions, authenticated APIs, ownership tests, deletion, and retention jobs are implemented and audited.
 - Apply database migrations only through a reviewed deployment workflow; do not point local tests or seed tools at production.
 
-No production deployment is performed merely by working on the `SnowRoute2` branch.
+No production deployment is performed merely by working on or pushing a feature branch.
 
 ## Further documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Location search](docs/LOCATION_SEARCH.md)
 - [Security and privacy](docs/SECURITY.md)
 - [Database and account readiness](docs/DATABASE.md)
 
@@ -250,7 +256,9 @@ No production deployment is performed merely by working on the `SnowRoute2` bran
 - Route-relative hold points are sampled coordinates, not verified legal or open stopping facilities.
 - The model has not been calibrated as a crash/closure probability and must not be interpreted that way.
 - Provider caches and the fallback limiter are bounded per-instance memory; only the optional Redis limiter is shared.
+- Exact city/place coverage and ranking depend on an unpinned hosted Pelias service; the structured geocoding endpoint is beta.
+- City membership is heuristic, unit text routes to a building point, and a city fallback is only an approximate provider point.
 - Observability provides correlation IDs, total API duration, structured failure stages, and server-side routing/sampling/forecast/scoring/departure-comparison timings. It does not provide distributed traces or a hosted alerting configuration.
 - Accounts, sessions, cross-device sync, cloud retention/deletion, and guest import are not operational.
-- The SQL migration is a schema foundation, not evidence of a deployed or connected database.
+- The SQL migrations are schema foundations, not evidence of a deployed or connected database.
 - Browser history is device/browser specific and can disappear when site data is cleared.

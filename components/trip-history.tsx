@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { useGuestTripHistory } from "@/hooks/use-guest-trip-history";
 import {
+  getGuestTripLocationLabel,
+  guestTripUsesCityFallback,
   queueGuestTripRestore,
   type GuestTripHistoryEntry,
 } from "@/lib/guest-trip-history";
@@ -59,6 +61,24 @@ function TripHistoryCard({
   onDelete: () => void;
 }) {
   const treatment = DECISION_TREATMENT[trip.decision];
+  const originLabel = getGuestTripLocationLabel(trip, "origin");
+  const destinationLabel = getGuestTripLocationLabel(trip, "destination");
+  const usesOriginFallback = guestTripUsesCityFallback(trip, "origin");
+  const usesDestinationFallback = guestTripUsesCityFallback(trip, "destination");
+  const deleteDialogTitleId = useId();
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
+  const wasConfirmingDeleteRef = useRef(false);
+
+  useEffect(() => {
+    if (isConfirmingDelete) {
+      cancelDeleteButtonRef.current?.focus();
+    } else if (wasConfirmingDeleteRef.current) {
+      deleteButtonRef.current?.focus();
+    }
+
+    wasConfirmingDeleteRef.current = isConfirmingDelete;
+  }, [isConfirmingDelete]);
 
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-6">
@@ -77,10 +97,24 @@ function TripHistoryCard({
           </div>
 
           <h2 className="mt-4 break-words text-xl font-semibold tracking-tight text-white sm:text-2xl">
-            {trip.origin.label}
+            {originLabel}
+            <span className="sr-only"> to </span>
             <span className="mx-2 text-slate-500" aria-hidden="true">→</span>
-            {trip.destination.label}
+            {destinationLabel}
           </h2>
+          {trip.requiresCityConfirmation ? (
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-amber-100/90">
+              This legacy route predates city-first search. Its labels and coordinates were
+              preserved, but both cities must be confirmed before a new analysis.
+            </p>
+          ) : usesOriginFallback || usesDestinationFallback ? (
+            <p className="mt-2 text-xs leading-5 text-slate-400">
+              {[usesOriginFallback ? "Starting point uses an approximate city point" : null,
+                usesDestinationFallback ? "destination uses an approximate city point" : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          ) : null}
           {trip.waypoints.length > 0 ? (
             <p className="mt-2 text-sm text-slate-400">
               Via {trip.waypoints.map((waypoint) => waypoint.label).join(" and ")}
@@ -135,6 +169,7 @@ function TripHistoryCard({
           </button>
           {!isConfirmingDelete ? (
             <button
+              ref={deleteButtonRef}
               type="button"
               onClick={onRequestDelete}
               className="min-h-11 rounded-xl border border-white/12 bg-white/[0.035] px-4 text-sm font-semibold text-slate-200 transition hover:border-rose-200/25 hover:bg-rose-300/[0.06] hover:text-white"
@@ -162,25 +197,35 @@ function TripHistoryCard({
               </dd>
             </div>
           </dl>
-          <p className="mt-4 text-[11px] text-slate-500">Risk model {trip.riskModelVersion}</p>
+          <p className="mt-4 text-[11px] leading-5 text-slate-500">
+            Risk model {trip.riskModelVersion} · Locations: {trip.geocoderProvider}
+          </p>
         </section>
       ) : null}
 
       {isConfirmingDelete ? (
-        <div className="mt-5 flex flex-col gap-3 rounded-xl border border-rose-200/18 bg-rose-300/[0.055] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-rose-50">Remove this trip from this device?</p>
+        <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby={deleteDialogTitleId}
+          className="mt-5 flex flex-col gap-3 rounded-xl border border-rose-200/18 bg-rose-300/[0.055] p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p id={deleteDialogTitleId} className="text-sm text-rose-50">
+            Remove this trip from this device?
+          </p>
           <div className="flex gap-2">
             <button
+              ref={cancelDeleteButtonRef}
               type="button"
               onClick={onCancelDelete}
-              className="min-h-10 rounded-lg border border-white/12 px-3 text-sm font-semibold text-slate-200 hover:bg-white/[0.05]"
+              className="min-h-11 rounded-lg border border-white/12 px-3 text-sm font-semibold text-slate-200 hover:bg-white/[0.05]"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={onDelete}
-              className="min-h-10 rounded-lg bg-rose-200 px-3 text-sm font-bold text-rose-950 hover:bg-rose-100"
+              className="min-h-11 rounded-lg bg-rose-200 px-3 text-sm font-bold text-rose-950 hover:bg-rose-100"
             >
               Delete trip
             </button>
@@ -197,9 +242,31 @@ export function TripHistory() {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const clearDialogTitleId = useId();
+  const clearHistoryButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelClearButtonRef = useRef<HTMLButtonElement>(null);
+  const wasConfirmingClearRef = useRef(false);
+
+  useEffect(() => {
+    if (isConfirmingClear) {
+      cancelClearButtonRef.current?.focus();
+    } else if (wasConfirmingClearRef.current) {
+      clearHistoryButtonRef.current?.focus();
+    }
+
+    wasConfirmingClearRef.current = isConfirmingClear;
+  }, [isConfirmingClear]);
 
   function analyzeAgain(trip: GuestTripHistoryEntry) {
-    queueGuestTripRestore(trip);
+    if (!queueGuestTripRestore(trip)) {
+      setActionError(
+        "This browser could not prepare the saved trip. Keep this page open and check whether site storage is blocked.",
+      );
+      return;
+    }
+
+    setActionError(null);
     router.push("/analyze-trip");
   }
 
@@ -220,8 +287,12 @@ export function TripHistory() {
             </div>
             {trips.length > 0 && !isConfirmingClear ? (
               <button
+                ref={clearHistoryButtonRef}
                 type="button"
-                onClick={() => setIsConfirmingClear(true)}
+                onClick={() => {
+                  setActionError(null);
+                  setIsConfirmingClear(true);
+                }}
                 className="min-h-11 shrink-0 rounded-xl border border-white/12 bg-white/[0.035] px-4 text-sm font-semibold text-slate-200 transition hover:border-rose-200/25 hover:bg-rose-300/[0.06]"
               >
                 Clear history
@@ -231,16 +302,24 @@ export function TripHistory() {
         </header>
 
         {isConfirmingClear ? (
-          <section className="mt-5 rounded-2xl border border-rose-200/18 bg-rose-300/[0.055] p-5 sm:flex sm:items-center sm:justify-between sm:gap-5">
+          <section
+            role="alertdialog"
+            aria-modal="false"
+            aria-labelledby={clearDialogTitleId}
+            className="mt-5 rounded-2xl border border-rose-200/18 bg-rose-300/[0.055] p-5 sm:flex sm:items-center sm:justify-between sm:gap-5"
+          >
             <div>
-              <h2 className="font-semibold text-rose-50">Clear all recent trips?</h2>
+              <h2 id={clearDialogTitleId} className="font-semibold text-rose-50">
+                Clear all recent trips?
+              </h2>
               <p className="mt-1 text-sm leading-6 text-slate-300">This removes every saved analysis from this browser.</p>
             </div>
             <div className="mt-4 flex gap-2 sm:mt-0">
               <button
+                ref={cancelClearButtonRef}
                 type="button"
                 onClick={() => setIsConfirmingClear(false)}
-                className="min-h-10 rounded-lg border border-white/12 px-3 text-sm font-semibold text-slate-200 hover:bg-white/[0.05]"
+                className="min-h-11 rounded-lg border border-white/12 px-3 text-sm font-semibold text-slate-200 hover:bg-white/[0.05]"
               >
                 Cancel
               </button>
@@ -250,7 +329,7 @@ export function TripHistory() {
                   void clear();
                   setIsConfirmingClear(false);
                 }}
-                className="min-h-10 rounded-lg bg-rose-200 px-3 text-sm font-bold text-rose-950 hover:bg-rose-100"
+                className="min-h-11 rounded-lg bg-rose-200 px-3 text-sm font-bold text-rose-950 hover:bg-rose-100"
               >
                 Clear history
               </button>
@@ -258,17 +337,20 @@ export function TripHistory() {
           </section>
         ) : null}
 
-        {error ? (
+        {actionError ?? error ? (
           <div role="alert" className="mt-5 rounded-xl border border-amber-200/20 bg-amber-200/[0.06] px-4 py-3 text-sm text-amber-50">
-            {error}
+            {actionError ?? error}
           </div>
         ) : null}
 
         {isLoading ? (
-          <div className="mt-6 space-y-4" aria-label="Loading recent trips">
-            {[0, 1].map((item) => (
-              <div key={item} className="h-52 rounded-2xl border border-white/8 bg-white/[0.025] motion-safe:animate-pulse" />
-            ))}
+          <div className="mt-6 space-y-4" role="status" aria-live="polite">
+            <span className="sr-only">Loading recent trips.</span>
+            <div aria-hidden="true" className="space-y-4">
+              {[0, 1].map((item) => (
+                <div key={item} className="h-52 rounded-2xl border border-white/8 bg-white/[0.025] motion-safe:animate-pulse" />
+              ))}
+            </div>
           </div>
         ) : trips.length === 0 ? (
           <section className="mt-6 rounded-2xl border border-dashed border-white/15 bg-black/10 px-5 py-14 text-center sm:px-8">

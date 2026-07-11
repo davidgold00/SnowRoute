@@ -7,8 +7,8 @@ SnowRoute processes precise route locations and calls external providers, so pri
 Implemented:
 
 - server-only openrouteservice and Redis credentials;
-- Zod request validation and coordinate/timezone/range checks;
-- independently typed origin and destination validation;
+- Zod city/place/effective-endpoint validation plus coordinate/timezone/range checks;
+- independently typed starting/destination city and place errors;
 - fixed external-provider hosts (no user-controlled fetch URLs);
 - stable public error codes without raw upstream errors or stack traces;
 - correlation IDs and structured server-side failure logs;
@@ -62,11 +62,19 @@ Use distinct credentials for local, preview, and production environments. Rotate
 
 ## Input validation
 
-`POST /api/geocode` accepts one normalized query between 2 and 120 characters. It rejects declared bodies above 4 KiB; analysis rejects declared bodies above 32 KiB. `POST /api/analyze` validates:
+Location endpoints enforce separate contracts:
+
+- `POST /api/locations/cities`: 2–120 query characters, optional 2/3-letter country code, declared body at most 4 KiB;
+- `POST /api/locations/places`: 2–160 query characters, a fully validated selected city, optional nearby flag, declared body at most 16 KiB;
+- compatibility `POST /api/geocode`: 2–200 query characters, declared body at most 4 KiB;
+- `POST /api/analyze`: declared body at most 32 KiB.
+
+The size checks use the declared `Content-Length`; hosting/platform request-size limits remain necessary for absent or dishonest headers. `POST /api/analyze` validates:
 
 - non-empty labels with bounded length;
 - finite latitude in `[-90, 90]` and longitude in `[-180, 180]`;
 - distinct origin and destination;
+- optional effective-endpoint coordinates agree with the legacy-compatible routing coordinates within `0.000001` degrees;
 - at most two waypoints in the current UI/API schema;
 - an offset-aware UTC departure timestamp;
 - a valid IANA timezone;
@@ -74,13 +82,13 @@ Use distinct credentials for local, preview, and production environments. Rotate
 
 Origin and destination are inspected independently before the full request parse, allowing both field errors in one response. Route construction still determines whether selected coordinates are connected by a drivable route.
 
-Request validation protects application assumptions; it does not prove a label matches its coordinates. The normal UI only submits provider-selected suggestions, but a hostile client can call APIs directly. Any future saved-location feature should preserve provider provenance and, if needed, verify/re-resolve inputs server-side.
+Request validation protects application assumptions; it does not cryptographically bind a provider ID/label to coordinates. The normal UI derives effective coordinates from provider-selected city/place objects, but a hostile client can call APIs directly. The server's effective-coordinate equality check prevents two contradictory representations in one request, not forged coordinates. Future cloud persistence should revalidate the complete structured selection and may need provider re-resolution based on product risk.
 
 ## External-provider resilience
 
 Provider adapters use constant base URLs. User input is encoded as query parameters or JSON coordinates and cannot choose a scheme, hostname, port, redirect target, or local-network address. This materially reduces SSRF risk.
 
-Geocoding has an 8-second timeout, directions has a 12-second timeout, and each weather attempt has an 8-second timeout. Weather makes at most two attempts with short jittered backoff; only transient network, quota, or server failures are candidates for the second attempt. Up to 16 coordinates are sent in each provider-supported batch, with at most three batches in flight. The analysis request has a 35-second overall deadline and propagates client cancellation to route/weather fetches. Validation, invalid-payload, and semantic no-route failures are not blindly retried. Bounded caches, in-flight forecast coalescing, and batching reduce duplicate provider work.
+Pelias geocoding has an 8-second timeout per attempt and at most two attempts. Network errors and HTTP `408`, `429`, or `5xx` may receive one short retry; invalid successful payloads and other statuses do not. Directions has a 12-second timeout. Each weather attempt has an 8-second timeout and weather makes at most two attempts for transient network, quota, or server failures. Up to 16 coordinates are sent in each supported weather batch, with at most three batches in flight. The analysis request has a 35-second overall deadline and propagates client cancellation to route/weather fetches. Bounded caches, in-flight search/forecast coalescing, and batching reduce duplicate provider work.
 
 Timeouts and retry limits are application resilience controls, not service-level guarantees. Deployment-level function timeouts should leave enough margin for SnowRoute to return its own typed `504` response instead of being terminated by the platform.
 
@@ -93,7 +101,9 @@ Current anonymous policies:
 
 `lib/rate-limit.ts` hashes a host-derived client address with `RATE_LIMIT_SALT`; changing the user agent does not create another bucket. With Upstash Redis configured, an atomic Lua script increments a shared fixed-window counter. The Redis call has a 1.5-second timeout. Responses include `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`; rejected calls also include `Retry-After` and a typed `429` error.
 
-If Redis is missing or unavailable, the code fails over to an expiring in-memory map and logs `rate_limit_degraded` once per process in production. Cleanup is opportunistic after the map grows, so active keys can still consume memory under a distributed attack. This fallback is acceptable for local development and graceful degradation, but it is not strong distributed protection: each instance has an independent counter, instances can restart, and an unknown/spoofable client identity can collapse or bypass buckets depending on proxy configuration.
+The single geocoding policy covers city, place, and legacy waypoint search. A client therefore receives one combined 45-request budget, not 45 requests for each route.
+
+If Redis is missing or unavailable, the code fails over to an expiring in-memory map and logs `rate_limit_degraded` once per process in production. Above 2,000 entries it removes expired records and evicts oldest records until 1,800 remain. This fallback is acceptable for local development and graceful degradation, but it is not strong distributed protection: each instance has an independent counter, instances can restart, and an unknown/spoofable client identity can collapse or bypass buckets depending on proxy configuration.
 
 Production requirements:
 
@@ -118,7 +128,9 @@ Public errors contain only a stable internal code, user-safe title/message, fiel
 - internal URLs or database statements;
 - full request payloads.
 
-Server failure logs are JSON records with the route stage, provider name, code, status, duration, retryability, technical context, and stack. Hosting log access must be restricted and retention bounded. Do not add raw origin/destination labels, precise coordinates, full IP addresses, or entire provider payloads to logs. Correlation IDs are diagnostic references, not secrets or authentication credentials.
+Server failure logs are JSON records with the route stage, provider name, code, status, duration, retryability, technical context, and stack. Successful city/place logs contain correlation/duration, provider label, query character count, country code, result counts, cache status, and a unit-note flag—not the query, address, coordinates, or provider IDs. The current `usedUnitFallback` field means a unit note was present and should not be interpreted as proof that a second provider request ran. Hosting log access must be restricted and retention bounded. Do not add raw origin/destination labels, precise coordinates, full IP addresses, or entire provider payloads to logs. Correlation IDs are diagnostic references, not secrets or authentication credentials.
+
+`lib/location-analytics.ts` dispatches same-page custom events with a restricted metadata type and no network adapter. The events can include safe counts, country/precision/type/fallback flags, duration, and internal error code. Any future analytics listener becomes a new data-processing boundary and must continue excluding query text, labels, coordinates, and provider IDs.
 
 Unexpected React errors are caught by route/global boundaries. Browser console reporting should likewise avoid precise trip data.
 
@@ -126,7 +138,7 @@ Unexpected React errors are caught by route/global boundaries. Browser console r
 
 React renders user/provider labels as text. The code does not use `dangerouslySetInnerHTML` for location, weather, or history content. URLs for API/provider access are fixed by code. Continue to avoid HTML-capable markdown or rich-text rendering for provider/user fields unless a tested sanitizer and restrictive allowlist are introduced.
 
-Autocomplete uses ARIA combobox/listbox semantics, keyboard selection, cancellation, and a bounded result set. Editing a selected label clears trusted coordinates instead of silently retaining stale hidden values.
+City and place autocomplete use ARIA combobox/listbox semantics, keyboard selection, cancellation, and bounded result sets. Editing selected text clears trusted coordinates. Reducer transitions also clear dependent places when a parent city changes, and outside-city candidates require an explicit city-change decision.
 
 ## Response headers
 
@@ -143,7 +155,7 @@ Autocomplete uses ARIA combobox/listbox semantics, keyboard selection, cancellat
 
 The CSP restricts the default, script, style, image, font, connection, worker, object, base, form, and framing sources. OpenStreetMap tile images are explicitly allowed. Development adds WebSocket connectivity and `unsafe-eval` for tooling. Inline script/style execution is currently allowed because of framework/chart/map runtime requirements; reducing those allowances with nonces/hashes is a future hardening opportunity and should be tested against Next.js streaming and third-party rendering before rollout.
 
-All `/api/*` responses receive `Cache-Control: no-store` and `X-Robots-Tag: noindex`. The adapters may still use server-side provider caches; those caches never make a private API response publicly cacheable.
+All `/api/*` responses receive `Cache-Control: no-store` and `X-Robots-Tag: noindex`; city/place handlers explicitly use `private, no-store`. Provider search requests use `cache: no-store`, while SnowRoute's bounded in-process search caches operate behind the response. Those internal caches never make a private API response publicly cacheable.
 
 HSTS and `upgrade-insecure-requests` assume a correctly configured HTTPS production deployment. Verify headers in the actual preview/production environment because hosting middleware can add, merge, or override them.
 
@@ -162,7 +174,7 @@ Before authenticated persistence is introduced:
 
 ## Database and authorization
 
-No application code currently opens a database connection. The SQL migration in `db/migrations/` is an inactive design foundation with UUID keys, coordinate and score constraints, bounded JSON, timestamps with timezone, indexes, foreign-key cascades, soft-delete columns, and PostgreSQL row-level security policies.
+No application code currently opens a database connection. The SQL migrations in `db/migrations/` are inactive design foundations with UUID keys, coordinate and score constraints, bounded structured-location/analysis JSON, timestamps with timezone, indexes, foreign-key cascades, soft-delete columns, and PostgreSQL row-level security policies.
 
 Those policies expect the runtime transaction to set `app.user_id` from a verified server session. Because no such runtime exists, the presence of RLS SQL must not be treated as proof of authorization. A future adapter must:
 
@@ -178,16 +190,16 @@ See [Database and account readiness](DATABASE.md).
 
 ## Guest privacy and retention
 
-The local history record stores:
+New version-2 local history records store:
 
-- normalized origin, destination, and up to two stop labels/coordinates;
+- validated city/place endpoint selections, effective labels/coordinates, same-city and city-fallback flags, geocoder label, and up to two stop labels/coordinates;
 - local/UTC departure and timezone;
 - decision label/summary, risk, confidence, key hazards, and worst segment summary;
 - model version, analysis timestamp, route distance, and duration.
 
 It does not store raw weather responses, full route geometry, provider authorization, full API envelopes, or a user account identifier.
 
-Retention is bounded to 20 unique coordinate-sequence summaries. A newer analysis of the same route replaces the older record. Users can delete one entry or clear all entries, and clearing browser site data also removes them. localStorage fallback records are migrated to IndexedDB when possible and removed from the fallback after a successful migration.
+Retention is bounded to 20 unique structured-intent summaries. Fingerprints distinguish a city fallback from an exact place even at the same coordinate. A newer analysis of the same structured route replaces the older record. Users can delete one entry or clear all entries, and clearing browser site data also removes them. Valid legacy v1 history is normalized to v2 without inventing city selections; re-analysis requires city confirmation. localStorage/IndexedDB sources are rewritten only after a successful migration, and legacy localStorage is removed after that rewrite.
 
 Browser storage is not encrypted by SnowRoute. It is available to scripts running on the same origin and to anyone with access to the browser profile/device. Shared-device and high-risk users should clear history or use private browsing according to their browser's behavior.
 
@@ -195,13 +207,15 @@ No guest data is sent to a SnowRoute account or database. Route inputs necessari
 
 ### External data flow
 
-- The SnowRoute server receives selected route labels/coordinates, optional stops, departure time, and timezone in order to perform the requested analysis.
-- openrouteservice receives search text for autocomplete, and receives ordered coordinates for directions. The server authenticates these calls with `ORS_API_KEY`.
+- The SnowRoute server receives city/place search text, the selected city object for contextual place search, and selected route labels/coordinates, optional stops, departure time, and timezone for analysis.
+- The openrouteservice-hosted Pelias service receives city/place search parameters and context; openrouteservice directions receives ordered coordinates. The server authenticates these calls with `ORS_API_KEY`.
 - Open-Meteo receives rounded route-bucket coordinates, the required forecast-day count, and requested hourly field names. It does not receive SnowRoute account data or human-readable route labels from this implementation.
 - OpenStreetMap tile servers receive browser-originated tile requests for the map viewport. As with ordinary web requests, the tile host can receive network/request metadata; map use is subject to that provider's policy.
 - Upstash Redis, when configured, receives only salted hashes used as rate-limit keys plus counters/expiry—not route labels, coordinates, or analysis payloads.
 
 Provider terms, data processing locations, retention, quotas, and attribution requirements must be reviewed for the actual production deployment. SnowRoute's own local-history policy cannot control an upstream provider's logs.
+
+The hosted Pelias version, details endpoint, dataset release, and language behavior are not exposed or pinned by SnowRoute. Application cache keys are SHA-256 digests of search/context, but hashes are not anonymization and cached values contain location results in process memory.
 
 ## Future cloud retention policy
 
@@ -216,7 +230,7 @@ Before cloud storage is enabled, publish and implement a precise policy covering
 - explicit, optional guest import and deduplication;
 - access/export expectations.
 
-The current migration has `deleted_at` and `expires_at` fields but no cleanup worker. Therefore, it does not implement permanent deletion or a retention schedule by itself.
+The current schema foundations include `deleted_at` and `expires_at` fields but no cleanup worker. Therefore, they do not implement permanent deletion or a retention schedule by themselves.
 
 ## Security review checklist
 
@@ -231,6 +245,8 @@ Before production deployment:
 - [ ] Confirm provider quotas, billing caps, and request timeout margins.
 - [ ] Restrict log access and retention; search for accidental precise-location logging.
 - [ ] Validate invalid/ambiguous address, no-route, timeout, offline, and rate-limit recovery.
+- [ ] Smoke-test duplicate city names, structured numeric addresses, US/Canadian postal extraction, unit fallback, outside-city warnings, and explicit city fallback against the preview provider.
+- [ ] Confirm location success logs and browser custom events contain no query text, addresses, coordinates, or provider IDs.
 - [ ] Check keyboard, screen-reader, reduced-motion, and narrow-screen behavior.
 - [ ] Confirm no database/auth UI is enabled merely because placeholder variables exist.
 

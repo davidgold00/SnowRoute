@@ -34,10 +34,10 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
         Math.max(12, rect.right - width),
         window.innerWidth - width - 12,
       );
-      const estimatedHeight = 168;
+      const panelHeight = panelRef.current?.getBoundingClientRect().height ?? 220;
       const top =
-        rect.bottom + estimatedHeight + 12 > window.innerHeight
-          ? Math.max(12, rect.top - estimatedHeight - 10)
+        rect.bottom + panelHeight + 12 > window.innerHeight
+          ? Math.max(12, rect.top - panelHeight - 10)
           : rect.bottom + 10;
 
       setPosition({ left, top, width });
@@ -51,6 +51,16 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => panelRef.current?.focus());
+
+    return () => window.cancelAnimationFrame(frame);
   }, [isOpen]);
 
   useEffect(() => {
@@ -98,9 +108,10 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
         type="button"
         aria-expanded={isOpen}
         aria-controls={isOpen ? tooltipId : undefined}
+        aria-haspopup="dialog"
         aria-label={label}
         onClick={() => setIsOpen((current) => !current)}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 ${
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-full border text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 ${
           isOpen
             ? "border-cyan-100/55 bg-cyan-200/[0.16] text-cyan-50 shadow-[0_0_0_4px_rgba(125,211,252,0.1)]"
             : "border-white/16 bg-white/[0.06] text-slate-100 hover:border-cyan-100/35 hover:bg-cyan-200/[0.1]"
@@ -113,7 +124,10 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
             <div
               ref={panelRef}
               id={tooltipId}
-              role="tooltip"
+              role="dialog"
+              aria-label={label}
+              aria-modal="false"
+              tabIndex={-1}
               style={{
                 left: position.left,
                 top: position.top,
@@ -132,7 +146,7 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
                     setIsOpen(false);
                     buttonRef.current?.focus();
                   }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
                 >
                   ×
                 </button>

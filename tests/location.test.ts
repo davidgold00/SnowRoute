@@ -86,4 +86,23 @@ describe("location normalization", () => {
 
     expect(suggestions).toHaveLength(1);
   });
+
+  it("does not collapse distinct provider records that share a mapped point", () => {
+    const first = createAddressFeature({
+      properties: {
+        ...createAddressFeature().properties,
+        gid: "openstreetmap:address:first-unit",
+        label: "100 Queens Park, Unit 1, Toronto, Ontario, Canada",
+      },
+    });
+    const second = createAddressFeature({
+      properties: {
+        ...createAddressFeature().properties,
+        gid: "openstreetmap:address:second-unit",
+        label: "100 Queens Park, Unit 2, Toronto, Ontario, Canada",
+      },
+    });
+
+    expect(normalizeGeocodeSuggestions([first, second])).toHaveLength(2);
+  });
 });

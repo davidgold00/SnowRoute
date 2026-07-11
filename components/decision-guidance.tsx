@@ -89,42 +89,6 @@ export function DangerWindows({ decision }: { decision: TripDecision }) {
   );
 }
 
-export function HoldGuidance({ decision }: { decision: TripDecision }) {
-  const hold = decision.holdRecommendation;
-
-  if (!hold?.shouldHold) {
-    return null;
-  }
-
-  return (
-    <section id="hold-guidance" className="scroll-mt-24 rounded-2xl border border-orange-200/20 bg-orange-300/[0.075] p-5 sm:p-6">
-      <p className="eyebrow text-orange-100/80">Where to stop if conditions worsen</p>
-      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-        Hold before {hold.holdBeforeLocationLabel}
-      </h3>
-      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-100">{hold.reason}</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-black/10 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Reach hold point</p>
-          <p className="mt-1 text-sm font-semibold text-white">{hold.estimatedArrivalTime}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-black/10 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Danger begins</p>
-          <p className="mt-1 text-sm font-semibold text-white">{hold.dangerBeginsAround}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-black/10 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">If continuing</p>
-          <div className="mt-1"><RiskPill label={hold.riskIfContinuing} /></div>
-        </div>
-      </div>
-      <p className="mt-4 text-xs leading-5 text-orange-50/85">
-        This is planning guidance, not a verified stopping location or live closure recommendation.
-        Confirm fuel, lodging, legal stopping options, and official advisories before leaving.
-      </p>
-    </section>
-  );
-}
-
 export function ForecastLimitations({ decision }: { decision: TripDecision }) {
   return (
     <section id="limitations" className="rounded-2xl border border-white/10 bg-white/[0.025] p-5 sm:p-6">

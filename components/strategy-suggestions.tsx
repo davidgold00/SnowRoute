@@ -6,12 +6,12 @@ function formatDistance(distanceKm: number) {
   return `${distanceKm.toFixed(0)} km`;
 }
 
-function getLikelihoodTone(likelihood: number) {
-  if (likelihood >= 75) {
+function getIndicatorTone(score: number) {
+  if (score >= 75) {
     return "border-rose-200/25 bg-rose-300/10 text-rose-50";
   }
 
-  if (likelihood >= 55) {
+  if (score >= 55) {
     return "border-amber-200/25 bg-amber-300/10 text-amber-50";
   }
 
@@ -24,7 +24,10 @@ export function StrategySuggestions({
   analysis: RouteAnalysisResponse;
 }) {
   const strategies = buildWeatherHoldStrategies(analysis);
-  const highestLikelihood = Math.max(...strategies.map((strategy) => strategy.likelihood), 0);
+  const highestIndicator = Math.max(
+    ...strategies.map((strategy) => strategy.indicatorScore),
+    0,
+  );
 
   return (
     <section className="space-y-6" aria-label="Weather hold strategy suggestions">
@@ -58,10 +61,10 @@ export function StrategySuggestions({
           </div>
           <div className="metric-card rounded-xl p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-              Highest hold likelihood
+              Highest hold indicator
             </p>
-            <p className="mt-2 text-3xl font-semibold text-white">{highestLikelihood}%</p>
-            <p className="mt-1 text-sm text-slate-300">Forecast-derived planning indicator</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{highestIndicator}/100</p>
+            <p className="mt-1 text-sm text-slate-300">Forecast-derived indicator score</p>
           </div>
           <div className="metric-card rounded-xl p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
@@ -101,14 +104,16 @@ export function StrategySuggestions({
                   </p>
                 </div>
                 <div
-                  className={`rounded-xl border px-4 py-3 text-right ${getLikelihoodTone(
-                    strategy.likelihood,
+                  className={`rounded-xl border px-4 py-3 text-right ${getIndicatorTone(
+                    strategy.indicatorScore,
                   )}`}
                 >
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-80">
-                    {strategy.likelihoodLabel} likelihood
+                    {strategy.indicatorLabel} hold indicator
                   </p>
-                  <p className="mt-1 text-3xl font-semibold leading-none">{strategy.likelihood}%</p>
+                  <p className="mt-1 text-3xl font-semibold leading-none">
+                    {strategy.indicatorScore}/100
+                  </p>
                 </div>
               </div>
 
@@ -170,10 +175,10 @@ export function StrategySuggestions({
           <p className="text-sm leading-6 text-slate-200">
             SnowRoute samples the route by estimated arrival time, matches each point to
             an hourly forecast, and marks sustained checkpoints scoring 50+ as high risk.
-            The hold-likelihood percentage combines the route risk score with snow,
-            visibility, wind, and near-freezing precipitation signals. It is a
-            conservative planning indicator, not a calibrated probability of a crash,
-            closure, or facility availability.
+            The hold-indicator score combines the route risk score with snow, visibility,
+            wind, and near-freezing precipitation signals. It is a conservative planning
+            aid, not a calibrated probability of a crash, closure, required stop, or
+            facility availability.
           </p>
           <p className="text-sm leading-6 text-slate-200">
             The operational guidance follows National Weather Service advice to avoid

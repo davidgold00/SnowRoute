@@ -82,14 +82,26 @@ export default function RouteMap({
   ]) as [number, number][];
   const activeSample =
     analysis.samples.find((sample) => sample.id === activeSampleId) ?? null;
+  const finalSampleIndex = analysis.samples.length - 1;
+  const visibleSamples = analysis.samples.filter(
+    (sample, index) =>
+      index === 0 ||
+      index === finalSampleIndex ||
+      sample.id === activeSampleId ||
+      sample.label === "High" ||
+      sample.label === "Severe",
+  );
 
   return (
-    <div className="map-shell overflow-hidden rounded-2xl border border-white/10">
+    <section
+      aria-label="Route risk map"
+      className="map-shell overflow-hidden rounded-2xl border border-white/10"
+    >
       <MapContainer
         center={routePath[0]}
         zoom={8}
-        scrollWheelZoom
-        className="h-[420px] w-full sm:h-[520px]"
+        scrollWheelZoom={false}
+        className="h-[340px] w-full sm:h-[460px] lg:h-[520px]"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -117,7 +129,7 @@ export default function RouteMap({
             />
           );
         })}
-        {analysis.samples.map((sample) => {
+        {visibleSamples.map((sample) => {
           const isActive = activeSampleId === sample.id;
 
           return (
@@ -173,11 +185,11 @@ export default function RouteMap({
           </p>
         ) : (
           <p>
-            Route map shows colored route segments and checkpoint markers using the
-            Low, Moderate, High, and Severe risk scale.
+            Route colors show the full risk scale. Markers are limited to route endpoints
+            and major hazard checkpoints; the checkpoint list contains every sampled point.
           </p>
         )}
       </div>
-    </div>
+    </section>
   );
 }

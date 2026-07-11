@@ -10,9 +10,141 @@ export const geocodeQuerySchema = z.object({
   query: z.string().trim().min(2).max(200),
 });
 
+export const locationBoundingBoxSchema = z
+  .object({
+    west: z.number().min(-180).max(180),
+    south: z.number().min(-90).max(90),
+    east: z.number().min(-180).max(180),
+    north: z.number().min(-90).max(90),
+  })
+  .refine((bounds) => bounds.south <= bounds.north, {
+    message: "The southern boundary must not exceed the northern boundary.",
+  });
+
+export const cityPrecisionSchema = z.enum([
+  "city",
+  "municipality",
+  "town",
+  "village",
+  "locality",
+]);
+
+export const placeTypeSchema = z.enum([
+  "address",
+  "street",
+  "business",
+  "landmark",
+  "airport",
+  "transit",
+  "postal",
+  "coordinates",
+  "unknown",
+]);
+
+export const placePrecisionSchema = z.enum([
+  "rooftop",
+  "parcel",
+  "entrance",
+  "street",
+  "intersection",
+  "postal",
+  "approximate",
+  "unknown",
+]);
+
+export const cityRelationshipSchema = z.enum([
+  "WITHIN_SELECTED_CITY",
+  "NEAR_SELECTED_CITY",
+  "OUTSIDE_SELECTED_CITY",
+  "CITY_MEMBERSHIP_UNKNOWN",
+]);
+
+const optionalLocationText = z.string().trim().min(1).max(240).nullish();
+const optionalProviderId = z.string().trim().min(1).max(240).nullish();
+const countryCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{2,3}$/)
+  .transform((value) => value.toUpperCase());
+
+export const citySelectionSchema = z.object({
+  providerId: optionalProviderId,
+  displayName: z.string().trim().min(1).max(240),
+  cityName: z.string().trim().min(1).max(160),
+  regionName: optionalLocationText,
+  regionCode: z.string().trim().min(1).max(32).nullish(),
+  countryName: z.string().trim().min(1).max(160),
+  countryCode: countryCodeSchema,
+  postalCode: z.string().trim().min(1).max(32).nullish(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  boundingBox: locationBoundingBoxSchema.nullish(),
+  timezone: z.string().trim().min(1).max(120).nullish(),
+  precision: cityPrecisionSchema,
+  providerConfidence: z.number().min(0).max(1).nullish(),
+});
+
+export const placeSelectionSchema = z.object({
+  providerId: optionalProviderId,
+  displayName: z.string().trim().min(1).max(240),
+  formattedAddress: z.string().trim().min(1).max(320),
+  primaryText: z.string().trim().min(1).max(180),
+  secondaryText: optionalLocationText,
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  placeType: placeTypeSchema,
+  precision: placePrecisionSchema,
+  cityName: optionalLocationText,
+  regionName: optionalLocationText,
+  countryCode: countryCodeSchema.nullish(),
+  postalCode: z.string().trim().min(1).max(32).nullish(),
+  cityRelationship: cityRelationshipSchema,
+  providerConfidence: z.number().min(0).max(1).nullish(),
+  matchType: z.string().trim().min(1).max(80).nullish(),
+  source: z.string().trim().min(1).max(80).nullish(),
+});
+
+export const routeEndpointSelectionSchema = z.object({
+  city: citySelectionSchema,
+  place: placeSelectionSchema.nullish(),
+  effectiveLatitude: z.number().min(-90).max(90),
+  effectiveLongitude: z.number().min(-180).max(180),
+  effectiveDisplayName: z.string().trim().min(1).max(240),
+  effectiveFormattedAddress: z.string().trim().min(1).max(320),
+  usesCityFallback: z.boolean(),
+});
+
+export const effectiveRouteEndpointSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  displayName: z.string().trim().min(1).max(240),
+  formattedAddress: z.string().trim().min(1).max(320),
+  placeType: placeTypeSchema,
+  precision: z.union([cityPrecisionSchema, placePrecisionSchema]),
+  usesCityFallback: z.boolean(),
+});
+
+export const effectiveRouteEndpointsSchema = z.object({
+  origin: effectiveRouteEndpointSchema,
+  destination: effectiveRouteEndpointSchema,
+});
+
+export const citySearchRequestSchema = z.object({
+  query: z.string().trim().min(2).max(120),
+  countryCode: countryCodeSchema.optional(),
+});
+
+export const placeSearchRequestSchema = z.object({
+  query: z.string().trim().min(2).max(160),
+  city: citySelectionSchema,
+  includeNearby: z.boolean().optional(),
+});
+
 export const analyzeRouteInputSchema = z.object({
   origin: locationSchema,
   destination: locationSchema,
+  effectiveEndpoints: effectiveRouteEndpointsSchema.optional(),
+  sameCity: z.boolean().optional().default(false),
   waypoints: z.array(locationSchema).max(2).optional().default([]),
   departureTimeUtc: z.string().datetime({ offset: true }),
   clientTimeZone: z.string().trim().min(1),
@@ -61,6 +193,32 @@ export type LocationSuggestion = Coordinate & {
   isApproximate?: boolean;
   providerConfidence?: number | null;
 };
+
+export type LocationBoundingBox = z.infer<typeof locationBoundingBoxSchema>;
+export type CityPrecision = z.infer<typeof cityPrecisionSchema>;
+export type PlaceType = z.infer<typeof placeTypeSchema>;
+export type PlacePrecision = z.infer<typeof placePrecisionSchema>;
+export type CityRelationship = z.infer<typeof cityRelationshipSchema>;
+export type CitySelection = z.infer<typeof citySelectionSchema>;
+export type PlaceSelection = z.infer<typeof placeSelectionSchema>;
+export type RouteEndpointSelection = z.infer<typeof routeEndpointSelectionSchema>;
+export type EffectiveRouteEndpoint = z.infer<typeof effectiveRouteEndpointSchema>;
+export type EffectiveRouteEndpoints = z.infer<typeof effectiveRouteEndpointsSchema>;
+export type CitySearchRequest = z.infer<typeof citySearchRequestSchema>;
+export type PlaceSearchRequest = z.infer<typeof placeSearchRequestSchema>;
+
+export type CitySearchResponseData = {
+  results: CitySelection[];
+};
+
+export type PlaceSearchResponseData = {
+  results: PlaceSelection[];
+  nearbyResults: PlaceSelection[];
+  normalizedQuery: string;
+  unitRoutingNote: string | null;
+};
+
+export type LocationSearchCacheStatus = "hit" | "miss" | "coalesced";
 
 export type AnalyzeRouteInput = z.infer<typeof analyzeRouteInputSchema>;
 

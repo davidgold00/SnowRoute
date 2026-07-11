@@ -2,14 +2,13 @@
 
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import dynamic from "next/dynamic";
-import { startTransition, useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useReducer, useRef, useState } from "react";
 
 import { HowItWorks } from "@/components/how-it-works";
 import { MapErrorBoundary } from "@/components/map-error-boundary";
 import { DecisionCard } from "@/components/decision-card";
 import {
   DangerWindows,
-  HoldGuidance,
   SaferDepartureCard,
   ForecastLimitations,
 } from "@/components/decision-guidance";
@@ -20,7 +19,6 @@ import {
 } from "@/components/route-form";
 import { SegmentTable } from "@/components/segment-table";
 import { StrategySuggestions } from "@/components/strategy-suggestions";
-import { SummaryPanel } from "@/components/summary-panel";
 import {
   consumeGuestTripRestore,
   createGuestTripHistoryEntry,
@@ -32,14 +30,31 @@ import {
   isApiSuccess,
   type PublicAppError,
 } from "@/lib/app-error";
+import { trackLocationEvent } from "@/lib/location-analytics";
+import {
+  createInitialRouteLocationState,
+  getDestinationCity,
+  getRouteEndpointSelections,
+  normalizeStoredRouteLocationState,
+  routeEndpointsAreEffectivelyIdentical,
+  routeLocationReducer,
+  toEffectiveRouteEndpoint,
+  type RouteLocationAction,
+  type RouteLocationState,
+} from "@/lib/route-location-state";
 import {
   MAX_WAYPOINTS,
   canAddWaypoint,
   getBrowserTimeZone,
+  getDefaultDepartureTimeLocal,
   inferTimeZoneFromLocation,
-  shouldOfferOriginTimeZoneSwitch,
 } from "@/lib/time-zones";
-import type { LocationSuggestion, RouteAnalysisResponse } from "@/lib/types";
+import type {
+  CitySelection,
+  LocationSuggestion,
+  RouteEndpointSelection,
+  RouteAnalysisResponse,
+} from "@/lib/types";
 
 const DepartureTimeOptimizer = dynamic(
   () =>
@@ -56,16 +71,19 @@ const RiskTimeline = dynamic(
   { ssr: false },
 );
 
-const TRIP_DRAFT_STORAGE_KEY = "snowroute.tripDraft.v2";
-const TRIP_LAUNCH_STORAGE_KEY = "snowroute.tripLaunch.v1";
+const TRIP_DRAFT_STORAGE_KEY = "snowroute.tripDraft.v3";
+const LEGACY_TRIP_DRAFT_STORAGE_KEY = "snowroute.tripDraft.v2";
+const TRIP_LAUNCH_STORAGE_KEY = "snowroute.tripLaunch.v2";
+const LEGACY_TRIP_LAUNCH_STORAGE_KEY = "snowroute.tripLaunch.v1";
 const TRIP_LAUNCH_MAX_AGE_MS = 10 * 60 * 1000;
 
 type TripDraft = {
-  origin: EditableStop;
-  destination: EditableStop;
+  version: 3;
+  locations: RouteLocationState;
   waypoints: EditableStop[];
   timeZone: string;
   timeZoneManuallySet: boolean;
+  requiresLocationConfirmation?: boolean;
 };
 
 type TripLaunch = TripDraft & {
@@ -83,30 +101,124 @@ function createWaypoint() {
   return createStop(`waypoint-${Math.random().toString(36).slice(2, 9)}`);
 }
 
-function createWaypointWithDraft(stop: EditableStop, index: number): EditableStop {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseWaypointDraft(value: unknown, index: number): EditableStop | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const selected = isRecord(value.selected) &&
+    typeof value.selected.id === "string" &&
+    typeof value.selected.label === "string" &&
+    typeof value.selected.lat === "number" &&
+    Number.isFinite(value.selected.lat) &&
+    typeof value.selected.lon === "number" &&
+    Number.isFinite(value.selected.lon)
+      ? (value.selected as LocationSuggestion)
+      : null;
+
   return {
-    id: stop.id || `waypoint-${index + 1}`,
-    query: stop.query,
-    selected: stop.selected,
+    id: typeof value.id === "string" && value.id
+      ? value.id.slice(0, 120)
+      : `waypoint-${index + 1}`,
+    query:
+      typeof value.query === "string"
+        ? value.query.slice(0, 200)
+        : selected?.label ?? "",
+    selected,
   };
 }
 
-function formatLocalDateTime(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+function cityFromLegacySuggestion(value: unknown): CitySelection | null {
+  if (!isRecord(value)) {
+    return null;
+  }
 
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  const isCity = value.locationType === "city" || value.placeType === "City";
+  const latitude = value.lat;
+  const longitude = value.lon;
+  const displayName = value.label;
+
+  if (
+    !isCity ||
+    typeof latitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(longitude) ||
+    typeof displayName !== "string" ||
+    !displayName.trim()
+  ) {
+    return null;
+  }
+
+  const cityName =
+    typeof value.locality === "string" && value.locality.trim()
+      ? value.locality.trim()
+      : typeof value.primaryLabel === "string" && value.primaryLabel.trim()
+        ? value.primaryLabel.trim()
+        : displayName.split(",")[0]?.trim();
+  const countryName =
+    typeof value.country === "string" && value.country.trim()
+      ? value.country.trim()
+      : "Unknown country";
+  const countryCode =
+    typeof value.countryCode === "string" && /^[A-Za-z]{2,3}$/.test(value.countryCode)
+      ? value.countryCode.toUpperCase()
+      : "ZZ";
+
+  if (!cityName) {
+    return null;
+  }
+
+  return {
+    providerId: typeof value.providerId === "string" ? value.providerId : null,
+    displayName: displayName.slice(0, 240),
+    cityName: cityName.slice(0, 160),
+    regionName: typeof value.region === "string" ? value.region.slice(0, 160) : null,
+    regionCode: null,
+    countryName: countryName.slice(0, 160),
+    countryCode,
+    postalCode: typeof value.postalCode === "string" ? value.postalCode.slice(0, 32) : null,
+    latitude,
+    longitude,
+    boundingBox: null,
+    timezone: null,
+    precision: "city",
+    providerConfidence:
+      typeof value.providerConfidence === "number" ? value.providerConfidence : null,
+  };
 }
 
-function getDefaultDepartureTime() {
-  const date = new Date();
-  date.setHours(date.getHours() + 1);
-  date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15, 0, 0);
+function legacyLocationsFromDraft(value: unknown) {
+  if (!isRecord(value)) {
+    return null;
+  }
 
-  return formatLocalDateTime(date);
+  const origin = isRecord(value.origin) ? value.origin : null;
+  const destination = isRecord(value.destination) ? value.destination : null;
+  const originSelected = origin?.selected;
+  const destinationSelected = destination?.selected;
+  const startCity = cityFromLegacySuggestion(originSelected);
+  const destinationCity = cityFromLegacySuggestion(destinationSelected);
+  const state = createInitialRouteLocationState();
+
+  state.start = {
+    ...state.start,
+    cityQuery: startCity?.displayName ??
+      (typeof origin?.query === "string" ? origin.query.slice(0, 120) : ""),
+    city: startCity,
+  };
+  state.destination = {
+    ...state.destination,
+    cityQuery: destinationCity?.displayName ??
+      (typeof destination?.query === "string" ? destination.query.slice(0, 120) : ""),
+    city: destinationCity,
+  };
+
+  return state;
 }
 
 function formatTripDuration(totalMinutes: number) {
@@ -131,7 +243,13 @@ function formatPublicError(error: PublicAppError) {
 function getRouteFieldErrors(error: PublicAppError): RouteFormFieldErrors {
   const nextErrors: RouteFormFieldErrors = {};
 
-  for (const field of ["origin", "destination", "departure"] as const) {
+  for (const field of [
+    "startCity",
+    "startPlace",
+    "destinationCity",
+    "destinationPlace",
+    "departure",
+  ] as const) {
     const fieldError = error.fieldErrors?.[field];
 
     if (fieldError) {
@@ -139,11 +257,15 @@ function getRouteFieldErrors(error: PublicAppError): RouteFormFieldErrors {
     }
   }
 
-  if (
-    (error.field === "origin" || error.field === "destination" || error.field === "departure") &&
-    !nextErrors[error.field]
-  ) {
-    nextErrors[error.field] = `${error.title} ${error.message}`;
+  const fieldAlias =
+    error.field === "origin"
+      ? "startCity"
+      : error.field === "destination"
+        ? "destinationCity"
+        : error.field;
+
+  if (fieldAlias && fieldAlias !== "general" && !nextErrors[fieldAlias]) {
+    nextErrors[fieldAlias] = `${error.title} ${error.message}`;
   }
 
   return nextErrors;
@@ -177,20 +299,60 @@ function loadTripDraft(): TripDraft | null {
   try {
     const storedDraft = window.localStorage.getItem(TRIP_DRAFT_STORAGE_KEY);
 
-    if (!storedDraft) {
+    if (storedDraft) {
+      const parsedDraft = JSON.parse(storedDraft) as unknown;
+
+      if (isRecord(parsedDraft) && parsedDraft.version === 3) {
+        const locations = normalizeStoredRouteLocationState(parsedDraft.locations);
+
+        if (locations) {
+          return {
+            version: 3,
+            locations,
+            waypoints: (Array.isArray(parsedDraft.waypoints) ? parsedDraft.waypoints : [])
+              .slice(0, MAX_WAYPOINTS)
+              .map(parseWaypointDraft)
+              .filter((stop): stop is EditableStop => stop !== null),
+            timeZone:
+              typeof parsedDraft.timeZone === "string"
+                ? parsedDraft.timeZone.slice(0, 120)
+                : getBrowserTimeZone(),
+            timeZoneManuallySet: Boolean(parsedDraft.timeZoneManuallySet),
+          };
+        }
+      }
+    }
+
+    const storedLegacyDraft = window.localStorage.getItem(LEGACY_TRIP_DRAFT_STORAGE_KEY);
+
+    if (!storedLegacyDraft) {
       return null;
     }
 
-    const parsedDraft = JSON.parse(storedDraft) as Partial<TripDraft>;
+    const parsedLegacyDraft = JSON.parse(storedLegacyDraft) as unknown;
+    const locations = legacyLocationsFromDraft(parsedLegacyDraft);
+
+    if (!locations) {
+      return null;
+    }
 
     return {
-      origin: parsedDraft.origin ?? createStop("origin"),
-      destination: parsedDraft.destination ?? createStop("destination"),
-      waypoints: (parsedDraft.waypoints ?? [])
+      version: 3,
+      locations,
+      waypoints: (isRecord(parsedLegacyDraft) && Array.isArray(parsedLegacyDraft.waypoints)
+        ? parsedLegacyDraft.waypoints
+        : [])
         .slice(0, MAX_WAYPOINTS)
-        .map(createWaypointWithDraft),
-      timeZone: parsedDraft.timeZone ?? getBrowserTimeZone(),
-      timeZoneManuallySet: Boolean(parsedDraft.timeZoneManuallySet),
+        .map(parseWaypointDraft)
+        .filter((stop): stop is EditableStop => stop !== null),
+      timeZone:
+        isRecord(parsedLegacyDraft) && typeof parsedLegacyDraft.timeZone === "string"
+          ? parsedLegacyDraft.timeZone.slice(0, 120)
+          : getBrowserTimeZone(),
+      timeZoneManuallySet: Boolean(
+        isRecord(parsedLegacyDraft) && parsedLegacyDraft.timeZoneManuallySet,
+      ),
+      requiresLocationConfirmation: true,
     };
   } catch {
     return null;
@@ -206,6 +368,7 @@ function saveTripDraft(draft: TripDraft) {
 function clearTripDraft() {
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(TRIP_DRAFT_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_TRIP_DRAFT_STORAGE_KEY);
   }
 }
 
@@ -215,21 +378,30 @@ function consumeTripLaunch(): TripLaunch | null {
   }
 
   try {
-    const storedLaunch = window.sessionStorage.getItem(TRIP_LAUNCH_STORAGE_KEY);
+    const storedLaunch =
+      window.sessionStorage.getItem(TRIP_LAUNCH_STORAGE_KEY) ??
+      window.sessionStorage.getItem(LEGACY_TRIP_LAUNCH_STORAGE_KEY);
     window.sessionStorage.removeItem(TRIP_LAUNCH_STORAGE_KEY);
+    window.sessionStorage.removeItem(LEGACY_TRIP_LAUNCH_STORAGE_KEY);
 
     if (!storedLaunch) {
       return null;
     }
 
-    const parsed = JSON.parse(storedLaunch) as Partial<TripLaunch>;
-    const createdAt = typeof parsed.createdAt === "string" ? Date.parse(parsed.createdAt) : NaN;
+    const parsed = JSON.parse(storedLaunch) as unknown;
+    const createdAt =
+      isRecord(parsed) && typeof parsed.createdAt === "string"
+        ? Date.parse(parsed.createdAt)
+        : NaN;
+    const locations = isRecord(parsed)
+      ? normalizeStoredRouteLocationState(parsed.locations) ?? legacyLocationsFromDraft(parsed)
+      : null;
 
     if (
-      !parsed.origin?.selected ||
-      !parsed.destination?.selected ||
-      !parsed.departureTimeLocal ||
-      !parsed.timeZone ||
+      !isRecord(parsed) ||
+      !locations ||
+      typeof parsed.departureTimeLocal !== "string" ||
+      typeof parsed.timeZone !== "string" ||
       !Number.isFinite(createdAt) ||
       Date.now() - createdAt > TRIP_LAUNCH_MAX_AGE_MS
     ) {
@@ -237,22 +409,111 @@ function consumeTripLaunch(): TripLaunch | null {
     }
 
     return {
-      origin: parsed.origin,
-      destination: parsed.destination,
-      waypoints: (parsed.waypoints ?? []).slice(0, MAX_WAYPOINTS),
-      timeZone: parsed.timeZone,
+      version: 3,
+      locations,
+      waypoints: (Array.isArray(parsed.waypoints) ? parsed.waypoints : [])
+        .slice(0, MAX_WAYPOINTS)
+        .map(parseWaypointDraft)
+        .filter((stop): stop is EditableStop => stop !== null),
+      timeZone: parsed.timeZone.slice(0, 120),
       timeZoneManuallySet: Boolean(parsed.timeZoneManuallySet),
-      departureTimeLocal: parsed.departureTimeLocal,
-      createdAt: parsed.createdAt!,
+      departureTimeLocal: parsed.departureTimeLocal.slice(0, 32),
+      createdAt: new Date(createdAt).toISOString(),
+      requiresLocationConfirmation: !normalizeStoredRouteLocationState(parsed.locations),
     };
   } catch {
     return null;
   }
 }
 
+function routeStateFromEndpoints(
+  origin: RouteEndpointSelection,
+  destination: RouteEndpointSelection,
+  sameCity: boolean,
+): RouteLocationState {
+  return {
+    start: {
+      cityQuery: origin.city.displayName,
+      city: origin.city,
+      placeQuery: origin.place?.displayName ?? "",
+      place: origin.place ?? null,
+    },
+    destination: {
+      cityQuery: sameCity ? "" : destination.city.displayName,
+      city: sameCity ? null : destination.city,
+      placeQuery: destination.place?.displayName ?? "",
+      place: destination.place ?? null,
+    },
+    sameCity,
+    savedDifferentCityDestination: null,
+    notice: null,
+  };
+}
+
+function createAnalysisInputSignature({
+  endpoints,
+  waypoints,
+  departureTimeLocal,
+  timeZone,
+}: {
+  endpoints: {
+    origin: RouteEndpointSelection;
+    destination: RouteEndpointSelection;
+  };
+  waypoints: EditableStop[];
+  departureTimeLocal: string;
+  timeZone: string;
+}) {
+  return JSON.stringify({
+    origin: [
+      endpoints.origin.effectiveLatitude,
+      endpoints.origin.effectiveLongitude,
+    ],
+    destination: [
+      endpoints.destination.effectiveLatitude,
+      endpoints.destination.effectiveLongitude,
+    ],
+    waypoints: waypoints.flatMap((waypoint) =>
+      waypoint.selected
+        ? [[waypoint.selected.lat, waypoint.selected.lon]]
+        : [],
+    ),
+    departureTimeLocal,
+    timeZone,
+  });
+}
+
+function describeEndpointPrecision(
+  endpoint: RouteEndpointSelection,
+  role: "starting point" | "destination",
+) {
+  if (endpoint.usesCityFallback) {
+    return `${role} uses an approximate city location in ${endpoint.city.cityName}`;
+  }
+
+  switch (endpoint.place?.precision) {
+    case "rooftop":
+    case "entrance":
+      return null;
+    case "parcel":
+      return `${role} is mapped at property level`;
+    case "street":
+      return `${role} is mapped at street level`;
+    case "intersection":
+      return `${role} is mapped to an intersection`;
+    case "postal":
+      return `${role} uses a postal-area point`;
+    default:
+      return `${role} uses an approximate provider-mapped point`;
+  }
+}
+
 export function AnalyzeTripShell() {
-  const [origin, setOrigin] = useState<EditableStop>(() => createStop("origin"));
-  const [destination, setDestination] = useState<EditableStop>(() => createStop("destination"));
+  const [locations, dispatchLocations] = useReducer(
+    routeLocationReducer,
+    undefined,
+    createInitialRouteLocationState,
+  );
   const [waypoints, setWaypoints] = useState<EditableStop[]>([]);
   const [departureTimeLocal, setDepartureTimeLocal] = useState("");
   const [timeZone, setTimeZone] = useState("UTC");
@@ -261,6 +522,15 @@ export function AnalyzeTripShell() {
     null,
   );
   const [analysis, setAnalysis] = useState<RouteAnalysisResponse | null>(null);
+  const [analyzedEndpoints, setAnalyzedEndpoints] = useState<{
+    origin: RouteEndpointSelection;
+    destination: RouteEndpointSelection;
+  } | null>(null);
+  const [analyzedDeparture, setAnalyzedDeparture] = useState<{
+    departureTimeLocal: string;
+    timeZone: string;
+  } | null>(null);
+  const [analyzedInputSignature, setAnalyzedInputSignature] = useState<string | null>(null);
   const [activeStage, setActiveStage] = useState<TripStage>("input");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -268,6 +538,7 @@ export function AnalyzeTripShell() {
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const [isPlannerReady, setIsPlannerReady] = useState(false);
   const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
+  const [showDetailedEvidence, setShowDetailedEvidence] = useState(false);
   const analyzeAbortRef = useRef<AbortController | null>(null);
   const stageContentRef = useRef<HTMLElement | null>(null);
   const hasRestoredDraftRef = useRef(false);
@@ -277,18 +548,24 @@ export function AnalyzeTripShell() {
       const restoredTrip = consumeGuestTripRestore();
       const launchedTrip = consumeTripLaunch();
       const draft = loadTripDraft();
+      let freshDepartureTimeZone = getBrowserTimeZone();
 
       if (restoredTrip) {
-        setOrigin({
-          id: "origin",
-          query: restoredTrip.origin.label,
-          selected: restoredTrip.origin,
-        });
-        setDestination({
-          id: "destination",
-          query: restoredTrip.destination.label,
-          selected: restoredTrip.destination,
-        });
+        if (restoredTrip.originEndpoint && restoredTrip.destinationEndpoint) {
+          dispatchLocations({
+            type: "LOAD_ROUTE_LOCATIONS",
+            state: routeStateFromEndpoints(
+              restoredTrip.originEndpoint,
+              restoredTrip.destinationEndpoint,
+              restoredTrip.sameCity,
+            ),
+          });
+        } else {
+          const legacyState = createInitialRouteLocationState();
+          legacyState.start.cityQuery = restoredTrip.legacyOrigin?.label ?? "";
+          legacyState.destination.cityQuery = restoredTrip.legacyDestination?.label ?? "";
+          dispatchLocations({ type: "LOAD_ROUTE_LOCATIONS", state: legacyState });
+        }
         setWaypoints(
           restoredTrip.waypoints.map((waypoint, index) => ({
             id: `waypoint-restored-${index + 1}`,
@@ -297,34 +574,49 @@ export function AnalyzeTripShell() {
           })),
         );
         setTimeZone(restoredTrip.timeZone);
+        freshDepartureTimeZone = restoredTrip.timeZone;
         setTimeZoneManuallySet(true);
         setRestoreNotice(
-          "Route restored from trip history. SnowRoute selected a fresh departure time so the next analysis uses current forecast conditions.",
+          restoredTrip.requiresCityConfirmation
+            ? "This older trip was preserved, but its cities must be reconfirmed before a new analysis. SnowRoute did not reuse unverifiable address coordinates as city centers."
+            : "Route restored from trip history. A fresh departure time was selected so the next analysis uses current forecasts.",
         );
       } else if (launchedTrip) {
-        setOrigin(launchedTrip.origin);
-        setDestination(launchedTrip.destination);
+        dispatchLocations({
+          type: "LOAD_ROUTE_LOCATIONS",
+          state: launchedTrip.locations,
+        });
         setWaypoints(launchedTrip.waypoints);
         setTimeZone(launchedTrip.timeZone);
+        freshDepartureTimeZone = launchedTrip.timeZone;
         setTimeZoneManuallySet(launchedTrip.timeZoneManuallySet);
         setDepartureTimeLocal(launchedTrip.departureTimeLocal);
         setRestoreNotice(
-          "Trip details carried over from the homepage. Review the route and departure before analyzing.",
+          launchedTrip.requiresLocationConfirmation
+            ? "The older route text was preserved. Confirm each city before searching an optional exact place."
+            : "Trip details carried over from the homepage. Review the route and departure before analyzing.",
         );
       } else if (draft) {
-        setOrigin(draft.origin);
-        setDestination(draft.destination);
+        dispatchLocations({ type: "LOAD_ROUTE_LOCATIONS", state: draft.locations });
         setWaypoints(draft.waypoints);
         setTimeZone(draft.timeZone);
+        freshDepartureTimeZone = draft.timeZone;
         setTimeZoneManuallySet(draft.timeZoneManuallySet);
+        if (draft.requiresLocationConfirmation) {
+          setRestoreNotice(
+            "A previous route draft was preserved. Confirm each city before adding an exact address or place.",
+          );
+        }
       } else {
-        setTimeZone(getBrowserTimeZone());
+        setTimeZone(freshDepartureTimeZone);
       }
 
       // A deliberate same-session homepage launch keeps its selected time. Drafts and
       // history restores use a fresh +1 hour departure so stale plans never become active.
       if (!launchedTrip || restoredTrip) {
-        setDepartureTimeLocal(getDefaultDepartureTime());
+        setDepartureTimeLocal(
+          getDefaultDepartureTimeLocal(freshDepartureTimeZone),
+        );
       }
       hasRestoredDraftRef.current = true;
       setIsPlannerReady(true);
@@ -338,8 +630,14 @@ export function AnalyzeTripShell() {
       return;
     }
 
-    saveTripDraft({ origin, destination, waypoints, timeZone, timeZoneManuallySet });
-  }, [destination, origin, timeZone, timeZoneManuallySet, waypoints]);
+    saveTripDraft({
+      version: 3,
+      locations,
+      waypoints,
+      timeZone,
+      timeZoneManuallySet,
+    });
+  }, [locations, timeZone, timeZoneManuallySet, waypoints]);
 
   function focusStageContent(targetId?: string) {
     window.requestAnimationFrame(() => {
@@ -383,21 +681,10 @@ export function AnalyzeTripShell() {
     const nextStage = availableStages[nextIndex];
 
     event.preventDefault();
-    selectStage(nextStage);
+    setActiveStage(nextStage);
     window.requestAnimationFrame(() => {
       document.getElementById(`trip-stage-${nextStage}`)?.focus();
     });
-  }
-
-  function handleStopChange(
-    setter: React.Dispatch<React.SetStateAction<EditableStop>>,
-    value: string,
-  ) {
-    setter((currentStop) => ({
-      ...currentStop,
-      query: value,
-      selected: currentStop.selected?.label === value ? currentStop.selected : null,
-    }));
   }
 
   function clearFieldError(field: keyof RouteFormFieldErrors) {
@@ -412,27 +699,31 @@ export function AnalyzeTripShell() {
     });
   }
 
-  function handleStopSelect(
-    setter: React.Dispatch<React.SetStateAction<EditableStop>>,
-    suggestion: LocationSuggestion,
-  ) {
-    setter((currentStop) => ({ ...currentStop, query: suggestion.label, selected: suggestion }));
+  function handleLocationAction(action: RouteLocationAction) {
+    dispatchLocations(action);
+    if (action.type === "EDIT_START_CITY" || action.type === "CLEAR_START_CITY") {
+      setOriginTimeZoneSuggestion(null);
+    }
+    setFieldErrors((current) =>
+      current.departure ? { departure: current.departure } : {},
+    );
+    setAnalysisError(null);
   }
 
-  function handleOriginSelect(suggestion: LocationSuggestion) {
-    handleStopSelect(setOrigin, suggestion);
-    clearFieldError("origin");
-    const inferredTimeZone = inferTimeZoneFromLocation(suggestion);
+  function handleStartCitySelected(city: CitySelection) {
+    const inferredTimeZone = city.timezone ?? inferTimeZoneFromLocation({
+      country: city.countryName,
+      detail: [city.regionName, city.countryName].filter(Boolean).join(", "),
+      label: city.displayName,
+      lon: city.longitude,
+      region: city.regionName ?? null,
+    });
 
-    setOriginTimeZoneSuggestion(
-      shouldOfferOriginTimeZoneSwitch({
-        currentTimeZone: timeZone,
-        manualOverride: timeZoneManuallySet,
-        originTimeZone: inferredTimeZone,
-      })
-        ? inferredTimeZone
-        : null,
-    );
+    if (inferredTimeZone && !timeZoneManuallySet) {
+      setTimeZone(inferredTimeZone);
+      setDepartureTimeLocal(getDefaultDepartureTimeLocal(inferredTimeZone));
+    }
+    setOriginTimeZoneSuggestion(null);
   }
 
   function handleTimeZoneChange(nextTimeZone: string) {
@@ -445,6 +736,9 @@ export function AnalyzeTripShell() {
   function handleUseOriginTimeZone() {
     if (originTimeZoneSuggestion) {
       setTimeZone(originTimeZoneSuggestion);
+      setDepartureTimeLocal(
+        getDefaultDepartureTimeLocal(originTimeZoneSuggestion),
+      );
       setTimeZoneManuallySet(true);
       setOriginTimeZoneSuggestion(null);
     }
@@ -453,14 +747,17 @@ export function AnalyzeTripShell() {
   function handleClearTrip() {
     analyzeAbortRef.current?.abort();
     clearTripDraft();
-    setOrigin(createStop("origin"));
-    setDestination(createStop("destination"));
+    dispatchLocations({ type: "RESET_ROUTE_LOCATIONS" });
     setWaypoints([]);
-    setDepartureTimeLocal(getDefaultDepartureTime());
-    setTimeZone(getBrowserTimeZone());
+    const browserTimeZone = getBrowserTimeZone();
+    setDepartureTimeLocal(getDefaultDepartureTimeLocal(browserTimeZone));
+    setTimeZone(browserTimeZone);
     setTimeZoneManuallySet(false);
     setOriginTimeZoneSuggestion(null);
     setAnalysis(null);
+    setAnalyzedEndpoints(null);
+    setAnalyzedDeparture(null);
+    setAnalyzedInputSignature(null);
     setActiveSampleId(null);
     setAnalysisError(null);
     setFieldErrors({});
@@ -496,25 +793,62 @@ export function AnalyzeTripShell() {
     const hasIncompleteWaypoint = waypoints.some(
       (waypoint) => waypoint.query.trim().length > 0 && !waypoint.selected,
     );
+    const destinationCity = getDestinationCity(locations);
+    const endpoints = getRouteEndpointSelections(locations);
     const localFieldErrors: RouteFormFieldErrors = {
-      ...(!origin.selected
-        ? { origin: "Choose a verified suggestion for the starting location." }
+      ...(!locations.start.city
+        ? {
+            startCity:
+              "Choose a starting city. Select a city from the suggestions before analyzing the route.",
+          }
         : {}),
-      ...(!destination.selected
-        ? { destination: "Choose a verified suggestion for the destination." }
+      ...(locations.start.placeQuery.trim() && !locations.start.place
+        ? {
+            startPlace: `Choose a starting address or leave it blank. Select a suggestion${locations.start.city ? ` in ${locations.start.city.cityName}` : ""}, or clear the field to use the city.`,
+          }
+        : {}),
+      ...(!destinationCity
+        ? {
+            destinationCity:
+              "Choose a destination city. Select a city from the suggestions before analyzing the route.",
+          }
+        : {}),
+      ...(locations.destination.placeQuery.trim() && !locations.destination.place
+        ? {
+            destinationPlace: `Choose a destination address or leave it blank. Select a suggestion${destinationCity ? ` in ${destinationCity.cityName}` : ""}, or clear the field to use the city.`,
+          }
         : {}),
       ...(!departureTimeLocal
         ? { departure: "Choose a complete departure date and time." }
         : {}),
+      ...(hasIncompleteWaypoint
+        ? { waypoints: "Choose a verified suggestion for every added stop, or remove it." }
+        : {}),
     };
 
-    if (!origin.selected || !destination.selected || !departureTimeLocal || hasIncompleteWaypoint) {
+    if (Object.keys(localFieldErrors).length > 0 || !endpoints) {
       setFieldErrors(localFieldErrors);
+      setAnalysisError(null);
+      trackLocationEvent("route_form_validation_failed", {
+        errorCode: !locations.start.city
+          ? "START_CITY_UNRESOLVED"
+          : !destinationCity
+            ? "DESTINATION_CITY_UNRESOLVED"
+            : hasIncompleteWaypoint
+              ? "WAYPOINT_UNRESOLVED"
+              : "PLACE_UNRESOLVED",
+      });
+      return;
+    }
+
+    if (routeEndpointsAreEffectivelyIdentical(endpoints.origin, endpoints.destination)) {
+      setFieldErrors({});
       setAnalysisError(
-        hasIncompleteWaypoint
-          ? "Choose a verified autocomplete suggestion for every stop before analyzing."
-          : "Correct the highlighted trip details before analyzing.",
+        "The starting point and destination are the same. Choose two different addresses or places.",
       );
+      trackLocationEvent("route_form_validation_failed", {
+        errorCode: "SAME_EFFECTIVE_LOCATION",
+      });
       return;
     }
 
@@ -522,7 +856,7 @@ export function AnalyzeTripShell() {
 
     if (Number.isNaN(departureDate.getTime())) {
       setFieldErrors({ departure: "Choose a complete, valid departure date and time." });
-      setAnalysisError("Departure time is not valid yet. Choose a new date and time.");
+      setAnalysisError(null);
       return;
     }
 
@@ -533,6 +867,10 @@ export function AnalyzeTripShell() {
     analyzeAbortRef.current?.abort();
     const abortController = new AbortController();
     analyzeAbortRef.current = abortController;
+    trackLocationEvent("route_analysis_started", {
+      usesCityFallback:
+        endpoints.origin.usesCityFallback || endpoints.destination.usesCityFallback,
+    });
 
     try {
       const response = await fetch("/api/analyze", {
@@ -540,8 +878,21 @@ export function AnalyzeTripShell() {
         headers: { "Content-Type": "application/json" },
         signal: abortController.signal,
         body: JSON.stringify({
-          origin: origin.selected,
-          destination: destination.selected,
+          origin: {
+            label: endpoints.origin.effectiveDisplayName,
+            lat: endpoints.origin.effectiveLatitude,
+            lon: endpoints.origin.effectiveLongitude,
+          },
+          destination: {
+            label: endpoints.destination.effectiveDisplayName,
+            lat: endpoints.destination.effectiveLatitude,
+            lon: endpoints.destination.effectiveLongitude,
+          },
+          effectiveEndpoints: {
+            origin: toEffectiveRouteEndpoint(endpoints.origin),
+            destination: toEffectiveRouteEndpoint(endpoints.destination),
+          },
+          sameCity: locations.sameCity,
           waypoints: waypoints.flatMap((waypoint) =>
             waypoint.selected ? [waypoint.selected] : [],
           ),
@@ -574,8 +925,9 @@ export function AnalyzeTripShell() {
 
       void saveGuestTrip(
         createGuestTripHistoryEntry({
-          origin: origin.selected,
-          destination: destination.selected,
+          originEndpoint: endpoints.origin,
+          destinationEndpoint: endpoints.destination,
+          sameCity: locations.sameCity,
           waypoints: waypoints.flatMap((waypoint) =>
             waypoint.selected ? [waypoint.selected] : [],
           ),
@@ -592,6 +944,7 @@ export function AnalyzeTripShell() {
           worstSegmentLocationLabel: nextAnalysis.tripDecision.worstSegmentLocationLabel,
           worstSegmentArrivalTime: nextAnalysis.tripDecision.worstSegmentArrivalTime,
           riskModelVersion: nextAnalysis.metadata.riskModelVersion,
+          geocoderProvider: nextAnalysis.metadata.geocoderProvider,
           distanceKm: nextAnalysis.route.distanceKm,
           durationMinutes: nextAnalysis.route.durationMinutes,
         }, {
@@ -601,6 +954,16 @@ export function AnalyzeTripShell() {
 
       startTransition(() => {
         setAnalysis(nextAnalysis);
+        setAnalyzedEndpoints(endpoints);
+        setAnalyzedDeparture({ departureTimeLocal, timeZone });
+        setAnalyzedInputSignature(
+          createAnalysisInputSignature({
+            endpoints,
+            waypoints,
+            departureTimeLocal,
+            timeZone,
+          }),
+        );
         setActiveSampleId(highestRiskSample?.id ?? null);
         setActiveStage("analysis");
       });
@@ -625,10 +988,29 @@ export function AnalyzeTripShell() {
     }
   }
 
-  const latestRouteName =
-    origin.selected?.label && destination.selected?.label
-      ? `${origin.selected.label} to ${destination.selected.label}`
-      : "Latest analyzed route";
+  const latestRouteName = analyzedEndpoints
+    ? `${analyzedEndpoints.origin.effectiveDisplayName} to ${analyzedEndpoints.destination.effectiveDisplayName}`
+    : "Latest analyzed route";
+  const routePrecisionNote = analyzedEndpoints
+    ? [
+        describeEndpointPrecision(analyzedEndpoints.origin, "starting point"),
+        describeEndpointPrecision(analyzedEndpoints.destination, "destination"),
+      ]
+        .filter(Boolean)
+        .join("; ") || null
+    : null;
+  const currentEndpoints = getRouteEndpointSelections(locations);
+  const analysisIsStale = Boolean(
+    analysis &&
+      analyzedInputSignature &&
+      (!currentEndpoints ||
+        createAnalysisInputSignature({
+          endpoints: currentEndpoints,
+          waypoints,
+          departureTimeLocal,
+          timeZone,
+        }) !== analyzedInputSignature),
+  );
   const stages: Array<{ id: TripStage; number: string; label: string; detail: string }> = [
     { id: "input", number: "01", label: "Trip details", detail: "Route, stops, departure" },
     { id: "analysis", number: "02", label: "Analysis", detail: "Route risk and timing" },
@@ -745,28 +1127,15 @@ export function AnalyzeTripShell() {
               ) : null}
 
               {isPlannerReady ? <RouteForm
-                origin={origin}
-                destination={destination}
+                locations={locations}
                 waypoints={waypoints}
                 departureTimeLocal={departureTimeLocal}
                 timeZone={timeZone}
                 originTimeZoneSuggestion={originTimeZoneSuggestion}
                 isSubmitting={isSubmitting}
                 fieldErrors={fieldErrors}
-                onOriginChange={(value) => {
-                  handleStopChange(setOrigin, value);
-                  setOriginTimeZoneSuggestion(null);
-                  clearFieldError("origin");
-                }}
-                onOriginSelect={handleOriginSelect}
-                onDestinationChange={(value) => {
-                  handleStopChange(setDestination, value);
-                  clearFieldError("destination");
-                }}
-                onDestinationSelect={(suggestion) => {
-                  handleStopSelect(setDestination, suggestion);
-                  clearFieldError("destination");
-                }}
+                onLocationAction={handleLocationAction}
+                onStartCitySelected={handleStartCitySelected}
                 onWaypointChange={(id, value) => {
                   setWaypoints((currentWaypoints) =>
                     currentWaypoints.map((waypoint) =>
@@ -780,6 +1149,7 @@ export function AnalyzeTripShell() {
                         : waypoint,
                     ),
                   );
+                  clearFieldError("waypoints");
                 }}
                 onWaypointSelect={(id, suggestion) => {
                   setWaypoints((currentWaypoints) =>
@@ -789,6 +1159,7 @@ export function AnalyzeTripShell() {
                         : waypoint,
                     ),
                   );
+                  clearFieldError("waypoints");
                 }}
                 onWaypointAdd={() => {
                   setWaypoints((currentWaypoints) =>
@@ -830,15 +1201,30 @@ export function AnalyzeTripShell() {
 
           {activeStage === "analysis" && analysis ? (
             <section className="space-y-6">
+              {analysisIsStale ? (
+                <section
+                  role="status"
+                  className="rounded-2xl border border-amber-200/25 bg-amber-200/[0.07] px-5 py-4 text-sm leading-6 text-amber-50"
+                >
+                  <p className="font-semibold">These results reflect the previous trip details.</p>
+                  <p className="mt-1 text-amber-50/80">
+                    Your current route, stop, departure, or time zone changed after this
+                    analysis. Return to Trip details and analyze again for updated guidance.
+                  </p>
+                </section>
+              ) : null}
+
+              <DecisionCard decision={analysis.tripDecision} />
+
               <section className="glass-panel rounded-2xl p-5 sm:p-6 lg:p-7">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                   <div>
-                    <p className="eyebrow">Step 2 · Route analysis</p>
+                    <p className="eyebrow">Analyzed route</p>
                     <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                       {latestRouteName}
                     </h2>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                      Departure: {departureTimeLocal.replace("T", " at ")} • {timeZone}
+                      Departure: {analyzedDeparture?.departureTimeLocal.replace("T", " at ")} • {analyzedDeparture?.timeZone}
                     </p>
                     <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
                       <div className="flex gap-1.5">
@@ -853,11 +1239,12 @@ export function AnalyzeTripShell() {
                         <dt className="font-semibold text-slate-300">Analyzed</dt>
                         <dd><time dateTime={analysis.metadata.analyzedAt}>{formatAnalysisTime(analysis.metadata.analyzedAt)}</time></dd>
                       </div>
-                      <div className="flex gap-1.5">
-                        <dt className="font-semibold text-slate-300">Model</dt>
-                        <dd>{analysis.metadata.riskModelVersion}</dd>
-                      </div>
                     </dl>
+                    {routePrecisionNote ? (
+                      <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/85">
+                        Endpoint precision note: {routePrecisionNote}.
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-3">
                     <button
@@ -878,8 +1265,6 @@ export function AnalyzeTripShell() {
                 </div>
               </section>
 
-              <DecisionCard decision={analysis.tripDecision} />
-
               <SaferDepartureCard
                 decision={analysis.tripDecision}
                 onUseDeparture={handleUseSuggestedDeparture}
@@ -887,40 +1272,58 @@ export function AnalyzeTripShell() {
 
               <DangerWindows decision={analysis.tripDecision} />
 
-              <HoldGuidance decision={analysis.tripDecision} />
+              <details
+                id="route-details"
+                className="group scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.025]"
+                onToggle={(event) => setShowDetailedEvidence(event.currentTarget.open)}
+              >
+                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-5 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-100 sm:px-6">
+                  <span>
+                    <span className="eyebrow block">Detailed route evidence</span>
+                    <span className="mt-1 block text-sm text-slate-300">
+                      Map, departure comparison, checkpoints, timeline, and model details
+                    </span>
+                  </span>
+                  <span aria-hidden="true" className="text-xl text-cyan-100 transition group-open:rotate-45">+</span>
+                </summary>
+                {showDetailedEvidence ? (
+                  <div className="space-y-6 border-t border-white/10 p-5 sm:p-6">
+                    <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold text-slate-300">Risk model</dt>
+                        <dd>{analysis.metadata.riskModelVersion}</dd>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold text-slate-300">Route provider</dt>
+                        <dd>{analysis.metadata.routeProvider}</dd>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold text-slate-300">Weather provider</dt>
+                        <dd>{analysis.metadata.weatherProvider}</dd>
+                      </div>
+                    </dl>
 
-              <section id="route-details" className="scroll-mt-24 space-y-6">
-                <div>
-                  <p className="eyebrow">Route details</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-                    Forecast evidence across the drive
-                  </h3>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                    The map supports the decision above. Use the checkpoint list and timeline
-                    to inspect where the score changes and why.
-                  </p>
-                </div>
-
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.68fr)]">
-                  <div className="min-w-0">
                     <MapErrorBoundary>
-                      <RouteMap analysis={analysis} activeSampleId={activeSampleId} onSelectSample={setActiveSampleId} />
+                      <RouteMap
+                        analysis={analysis}
+                        activeSampleId={activeSampleId}
+                        onSelectSample={setActiveSampleId}
+                      />
                     </MapErrorBoundary>
+
+                    <DepartureTimeOptimizer optimization={analysis.departureOptimization} />
+
+                    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+                      <SegmentTable
+                        samples={analysis.samples}
+                        activeSampleId={activeSampleId}
+                        onSelectSample={setActiveSampleId}
+                      />
+                      <RiskTimeline samples={analysis.samples} activeSampleId={activeSampleId} />
+                    </div>
                   </div>
-                  <div className="min-w-0"><SummaryPanel analysis={analysis} /></div>
-                </div>
-
-                <DepartureTimeOptimizer optimization={analysis.departureOptimization} />
-
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
-                  <SegmentTable
-                    samples={analysis.samples}
-                    activeSampleId={activeSampleId}
-                    onSelectSample={setActiveSampleId}
-                  />
-                  <RiskTimeline samples={analysis.samples} activeSampleId={activeSampleId} />
-                </div>
-              </section>
+                ) : null}
+              </details>
 
               <ForecastLimitations decision={analysis.tripDecision} />
             </section>
@@ -929,24 +1332,8 @@ export function AnalyzeTripShell() {
           {activeStage === "strategy" && analysis ? <StrategySuggestions analysis={analysis} /> : null}
         </main>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-6">
           <HowItWorks />
-
-          <footer className="rounded-2xl border border-amber-200/15 bg-amber-200/[0.045] px-5 py-4 text-xs leading-5 text-slate-300 sm:px-6">
-            <p className="font-semibold uppercase tracking-[0.2em] text-amber-100/80">
-              Important safety notice
-            </p>
-            <p className="mt-2 max-w-5xl">
-              SnowRoute is an informational planning aid that provides forecast-based
-              suggestions. It is not an emergency service, road-closure authority,
-              meteorological guarantee, or substitute for your judgment. SnowRoute and
-              its operators are not liable for accidents, injuries, property damage,
-              delays, losses, or other consequences arising from travel decisions made
-              using this service. Check official warnings and current road conditions,
-              follow local instructions, and proceed only when you determine that travel
-              is safe.
-            </p>
-          </footer>
         </div>
       </div>
     </div>

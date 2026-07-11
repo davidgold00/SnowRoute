@@ -59,7 +59,7 @@ describe("application errors", () => {
       },
     });
 
-    expect(error?.code).toBe("SAME_ORIGIN_AND_DESTINATION");
+    expect(error?.code).toBe("SAME_EFFECTIVE_LOCATION");
     expect(error?.statusCode).toBe(422);
   });
 

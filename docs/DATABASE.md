@@ -7,7 +7,7 @@ Accounts and cloud persistence are **not operational in this repository**.
 The current application has:
 
 - an `/account` page that explains optional account value and precise-location privacy;
-- a PostgreSQL schema foundation at `db/migrations/0001_account_trip_history.sql`;
+- PostgreSQL schema foundations at `db/migrations/0001_account_trip_history.sql` and `0002_structured_trip_locations.sql`;
 - reserved environment-variable names;
 - local guest history in IndexedDB/localStorage.
 
@@ -32,7 +32,7 @@ The browser guest store remains the only active persistence mechanism. A user ca
 
 ## Schema foundation
 
-Migration `0001_account_trip_history.sql` runs in one transaction and enables `pgcrypto` for UUID generation.
+Migration `0001_account_trip_history.sql` creates the account/trip/analysis foundation in one transaction and enables `pgcrypto` for UUID generation. Additive migration `0002_structured_trip_locations.sql` evolves future trip rows for city-first endpoints without guessing structure for legacy rows. Neither migration is connected to runtime application code.
 
 ### `snowroute_users`
 
@@ -54,13 +54,23 @@ Planned user-owned route record:
 
 - UUID primary key and required `user_id` foreign key;
 - optional bounded title;
-- bounded origin/destination labels and checked coordinates;
+- bounded origin/destination effective labels and checked effective coordinates;
 - planned departure and IANA client timezone;
 - optional SHA-256-sized route fingerprint;
 - favorite flag;
 - created/updated timestamps and nullable soft-delete timestamp.
 
 Deleting a user cascades to trips. Normal future queries must exclude `deleted_at IS NOT NULL` even though row-level security enforces ownership.
+
+After migration 0002, the table can also retain:
+
+- `location_schema_version` (`1` legacy flat values or `2` structured city-first values);
+- bounded `origin_selection` and `destination_selection` JSON objects;
+- `same_city` and endpoint city-fallback flags;
+- effective precision values;
+- geocoder-provider label.
+
+The flat labels/coordinates remain the effective routing compatibility columns. This avoids requiring every read/query to decode JSON and preserves version-1 rows honestly.
 
 ### `trip_stops`
 
@@ -89,13 +99,14 @@ The design stores a normalized summary, not raw route/weather provider responses
 
 ## Constraints and indexes
 
-The migration includes:
+The schema foundations include:
 
 - primary and foreign keys;
 - cascade behavior for user/trip deletion;
 - non-null constraints on ownership and core route/analysis fields;
 - latitude/longitude ranges;
 - bounded labels, email, display name, title, timezone, and JSON size;
+- structured-location JSON shape/32 KiB limits, fallback consistency, and equality between JSON effective coordinates and flat coordinates for version-2 trips;
 - checked decision/confidence/risk values and score ranges;
 - unique identity, active email, and stop-position constraints;
 - timezone-aware timestamps and server defaults;
@@ -159,16 +170,28 @@ There is no migration runner in `package.json`. The SQL file should not be appli
 6. back up any existing schema;
 7. test the application role, RLS, indexes, and rollback/forward-fix plan.
 
-For an isolated developer database only, the current one-file foundation can be inspected/applied manually with PostgreSQL's client:
+For an isolated developer database only, the current foundations can be inspected/applied in order with PostgreSQL's client:
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f db/migrations/0001_account_trip_history.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f db/migrations/0002_structured_trip_locations.sql
 ```
 
 This command is documentation for future integration, not part of current application setup. Verify the hostname/database name interactively before running it. Never use a production URL from `.env.local`, never run tests or seed scripts against production, and never paste a credential into a shell history or commit.
 
-The migration has no down migration. For a pre-release disposable database, restore/recreate from a known state. For a database containing real data, prefer a reviewed forward-fix migration; destructive rollback requires a backup, impact assessment, and explicit approval.
+The migrations have no down migrations. For a pre-release disposable database, restore/recreate from a known state. For a database containing real data, prefer a reviewed forward-fix migration; destructive rollback requires a backup, impact assessment, and explicit approval.
+
+### Structured-location additive rollout
+
+Migration 0002 temporarily gives `location_schema_version` a default of `1` while adding columns, so existing rows remain valid. It then drops the default: every future writer must deliberately choose version 1 or 2 rather than silently creating a legacy row.
+
+Version-1 rows retain flat labels/coordinates and nullable structured columns. The migration does not infer a city from an old address label or reuse an arbitrary old coordinate as a city center. A version-2 row must provide both bounded structured selections, same-city/fallback flags, effective precisions, provider label, and JSON effective coordinates equal to the flat routing coordinates within `0.0000001` degrees.
+
+Migration 0002 expects the constraint names/schema created by 0001 and must run after it. It is additive at the data level, but dropping/recreating label-length constraints still requires the usual lock/rollout review on a populated table.
+
+The repository has not demonstrated an already-migrated database. If any environment previously applied an older copy of 0001, editing that file does not update the database. Before accounts are enabled, create a new forward migration that adds/verifies `UNIQUE (id, user_id)`, the composite analysis-to-trip foreign key, and the parent-trip RLS existence checks rather than assuming the revised 0001 was replayed.
 
 ## Environment separation
 
@@ -223,7 +246,7 @@ Import must be explicit and optional. A recommended flow:
 
 1. Show what stays local and what would be uploaded.
 2. Let the newly authenticated user select import or skip.
-3. Re-validate every browser record server-side; browser storage is untrusted.
+3. Re-validate every browser record server-side; browser storage is untrusted. Version-2 guest history carries structured endpoint intent, while migrated v1 history requires city confirmation and must not be silently promoted to cloud city selections.
 4. Deduplicate by an HMAC/fingerprint of normalized coordinates and stop order, not by a public predictable ID.
 5. Insert owned trips and bounded summaries in one or small bounded transactions.
 6. Return per-item success/failure without duplicating a partially imported batch.
@@ -267,8 +290,8 @@ No seed script exists. If one is added:
 
 - [ ] Managed PostgreSQL instances provisioned separately for dev/test/preview/prod.
 - [ ] Maintained driver/ORM and serverless-safe pooling integrated.
-- [ ] Migration tooling tracks applied versions/checksums.
-- [ ] Migration tested, including extension permission, constraints, indexes, and RLS.
+- [ ] Migration tooling tracks applied versions/checksums and applies 0001 before 0002.
+- [ ] Migrations tested, including extension permission, structured-location constraints, indexes, composite analysis ownership, and RLS.
 - [ ] Non-owner application role and separate migration role configured.
 - [ ] OIDC/authentication library integrated and threat-reviewed.
 - [ ] Secure session/callback/sign-out/recovery/account-deletion flows implemented.

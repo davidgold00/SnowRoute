@@ -9,7 +9,9 @@ SnowRoute is a Next.js App Router application with a browser-facing UI and same-
 ```text
 Browser
   ├─ homepage launcher / planner / results / history
-  ├─ POST /api/geocode ────────────────┐
+  ├─ POST /api/locations/cities ───────┐
+  ├─ POST /api/locations/places ───────┤
+  ├─ POST /api/geocode (waypoints) ────┤
   └─ POST /api/analyze ────────────────┼─ Next.js server
                                        │   ├─ validation + typed errors
                                        │   ├─ rate limiting
@@ -39,7 +41,9 @@ OpenStreetMap tile requests are made by Leaflet in the browser. Tiles provide ma
 | `/history` | Bounded, device-local guest history with re-analysis and deletion. |
 | `/account` | Account value/privacy explanation and explicit disabled state. It is not a sign-in implementation. |
 | `/about` | Method, data-source, and safety explanation. |
-| `POST /api/geocode` | Validates a search query and returns normalized structured suggestions. |
+| `POST /api/locations/cities` | City autocomplete with optional country boundary and structured city results. |
+| `POST /api/locations/places` | City-contextual address/place search with primary and nearby groups. |
+| `POST /api/geocode` | Compatibility/waypoint search using the legacy flat suggestion contract. |
 | `POST /api/analyze` | Validates trip input and runs the route/weather/risk/decision pipeline. |
 | `GET /api/health` | Shallow application/configuration readiness; no provider probe. |
 
@@ -49,32 +53,28 @@ App-level, global, and not-found boundaries keep recoverable page failures from 
 
 ### 1. Location resolution
 
-1. The combobox waits for at least two characters and debounces input for 300 ms.
-2. A new query aborts the superseded browser request.
-3. The hook checks a small in-page query cache, then sends `POST /api/geocode`.
-4. The route handler validates length with Zod, creates a correlation ID, applies the geocode rate-limit policy, and calls the server-only routing adapter.
-5. The adapter normalizes whitespace, checks its cache, and calls openrouteservice with a server-side key and an 8-second provider timeout.
-6. `lib/location.ts` converts Pelias/openrouteservice features into stable `LocationSuggestion` records and removes duplicates.
-7. The client displays the primary label plus locality, region, postal code, country, place type, precision, and approximation information when available.
-8. Coordinates are considered selected only after the user chooses a suggestion. Editing the text after selection invalidates those coordinates.
+The previous flat path sent one global free-text `/geocode/search` request with no selected city, region, country, bounds, or focus. It mixed cities, streets, addresses, and venues; cached empty browser results indefinitely and server negatives for 12 hours; lacked contextual membership/ranking; and could restore flat stale coordinates. Sanitized probes confirmed that unqualified streets could resolve to the wrong city/state while structured and city-bounded requests improved relevance. Debounce and cancellation already existed and were not the cause.
 
-The normalized location representation includes:
+The current endpoint workflow is:
 
-- SnowRoute and provider IDs;
-- display and formatted address labels;
-- latitude and longitude;
-- locality, region, postal code, country, and country code when supplied;
-- place/location type;
-- conservative precision (`street`, `postal`, `city`, `region`, or `unknown`);
-- approximation flag and provider confidence when supplied.
+1. City text settles after 250 ms and `POST /api/locations/cities` calls Pelias autocomplete for `locality,localadmin` layers.
+2. The traveler selects a city with region/country context; typed text alone carries no trusted coordinates.
+3. Optional place text settles after 300 ms and `POST /api/locations/places` receives the fully validated selected city.
+4. Address-like input uses structured fields, supported US/Canadian postal extraction, and a building-address retry when a recognized unit suffix yields no primary result.
+5. Named input uses city focus, country boundary, and available city rectangle. Sparse results trigger qualified forward-search fallback.
+6. `lib/location.ts` validates, classifies city relationship, ranks, and deduplicates candidates. Explicit outside-city results are separated and require a city change before selection.
+7. `lib/route-location-state.ts` invalidates child selections when their city/text changes and owns same-city transitions.
+8. A blank optional place produces a visible `Central <city>` endpoint with `usesCityFallback: true`; it never masquerades as an exact place.
 
-The provider does not guarantee rooftop accuracy. Even house-number results are classified conservatively as street-level; SnowRoute does not invent parcel or rooftop precision.
+The openrouteservice public geocoder is a hosted Pelias service separate from the versioned openrouteservice core. SnowRoute uses autocomplete, beta structured search, and forward search, but does not pin/discover the Pelias version, call a details endpoint, or request a result language. Address coverage and ranking remain upstream-dependent. Even a point-accuracy house-number result is labeled conservatively as street-level.
+
+See [Location search](LOCATION_SEARCH.md) for API schemas, provider parameters, membership/ranking, cache behavior, guest migration, and limitations.
 
 ### 2. Trip submission
 
-The browser sends selected origin/destination coordinates, up to two selected waypoints, a UTC departure timestamp, and an IANA client timezone to `POST /api/analyze`. Duplicate submissions are disabled in the UI and the prior analysis request is abortable.
+The browser derives `RouteEndpointSelection` objects from the reducer, then sends effective origin/destination labels/coordinates, a compact `effectiveEndpoints` summary, same-city flag, up to two selected waypoints, a UTC departure timestamp, and an IANA client timezone to `POST /api/analyze`. Duplicate submissions are disabled in the UI and the prior analysis request is abortable.
 
-The server validates origin and destination independently before the main Zod parse so one response can identify both field problems. It then validates coordinates, waypoint count, timestamp, timezone, past/future constraints, and the 15-day forecast horizon. Provider keys and user IDs are never accepted from the client.
+The client requires selected cities; optional place text must either resolve to a selection or be cleared for explicit city fallback. Endpoints within 25 m are rejected as effectively identical. The server validates legacy-effective origin/destination independently before the main Zod parse, checks supplied effective-endpoint coordinates agree within `0.000001` degrees, then validates waypoint count, timestamp, timezone, past/future constraints, and the 15-day forecast horizon. Provider keys and user IDs are never accepted from the client.
 
 ### 3. Route construction and sampling
 
@@ -194,7 +194,15 @@ type ApiResponse<T> =
         code: AppErrorCode;
         title: string;
         message: string;
-        field?: "origin" | "destination" | "departure" | "general";
+        field?:
+          | "startCity"
+          | "startPlace"
+          | "destinationCity"
+          | "destinationPlace"
+          | "origin"
+          | "destination"
+          | "departure"
+          | "general";
         retryable: boolean;
         correlationId?: string;
         fieldErrors?: Record<string, PublicFieldError>;
@@ -202,19 +210,21 @@ type ApiResponse<T> =
     };
 ```
 
-Clients branch on `ok` and stable `code`, never provider-message substrings. Provider responses and exception messages are mapped on the server. Structured error logs include event, timestamp, correlation ID, stage, provider, internal error code, status, duration, retryability, technical context, and server stack. Public responses omit technical context and stacks.
+Location-search successes extend `meta` at runtime with `cache: "hit" | "miss" | "coalesced"` and `provider: "openrouteservice-pelias"`. Clients branch on `ok` and stable `code`, never provider-message substrings. Provider responses and exception messages are mapped on the server. Structured error logs include event, timestamp, correlation ID, stage, provider, internal error code, status, duration, retryability, technical context, and server stack. Public responses omit technical context and stacks.
 
 ## Cache and concurrency strategy
 
 | Data | Key | TTL | Scope |
 | --- | --- | --- | --- |
-| Geocoding | normalized lowercase query | 12 hours | Next fetch cache plus process memory |
+| City search | SHA-256 of normalized query + optional country | 12 h positive / 60 s empty | process memory, 250 entries |
+| Place search | SHA-256 of normalized query + city/country/bounds/nearby context | 15 min positive / 30 s empty | process memory, 500 entries |
+| Legacy waypoint geocode | SHA-256 of normalized query | 30 min positive / 30 s empty | process memory, 250 entries |
 | Directions | ordered coordinate list | 10 minutes | process memory |
 | Forecast | 0.01° bucket and forecast-day count | 15 minutes | Next fetch cache plus process memory |
-| Browser autocomplete | normalized lowercase query | current page lifetime | browser memory |
-| Guest trip history | route-coordinate fingerprint | until deleted/evicted | IndexedDB/localStorage on one browser |
+| Browser city/place | mode + normalized query + country/city context | 30 min city / 10 min place / 30 s empty | browser memory, 150 entries |
+| Guest trip history | structured route-intent fingerprint | until deleted/evicted | IndexedDB/localStorage on one browser |
 
-Forecast calls are bucketed, sent in provider-supported 16-coordinate batches, and parallelized with a three-batch cap. Selected-time and departure-comparison checkpoint requests are resolved together. Browser search is capped at 100 entries; geocode, route, and forecast process caches are capped at 500, 250, and 500 entries respectively. Caches never contain authentication sessions because account persistence is not implemented.
+Identical city/place/legacy server searches coalesce onto one in-flight provider promise. An aborted waiter stops waiting without cancelling work shared by other callers. Provider search requests use `cache: no-store`; application maps are the only search-result cache. Forecast calls are bucketed, sent in provider-supported 16-coordinate batches, and parallelized with a three-batch cap. Selected-time and departure-comparison checkpoint requests are resolved together. Route and forecast process caches are capped at 250 and 500 entries. Caches never contain authentication sessions because account persistence is not implemented.
 
 Process-memory caches do not coordinate across serverless instances and disappear on restart. A shared route/weather cache could be introduced later only after privacy, staleness, provider terms, and key design are reviewed.
 
@@ -229,19 +239,19 @@ Process-memory caches do not coordinate across serverless instances and disappea
 
 The host-forwarded client address is hashed with `RATE_LIMIT_SALT`; the raw address is not used as a Redis key, and attacker-controlled user-agent changes do not create new buckets. With `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`, the counter is shared through an atomic Redis script. The Redis request times out after 1.5 seconds. Responses expose standard limit, remaining, reset, and retry-after information.
 
-If Redis is missing, times out, or returns an invalid response, limiting falls back to an expiring in-process map. Cleanup is opportunistic and active keys can still grow under a distributed attack. This keeps local development usable but is degraded in production because separate instances have separate counters. Production must configure the shared backend and monitor the `rate_limit_degraded` warning.
+The geocode policy is applied to city, place, and legacy geocode routes as one combined client budget. If Redis is missing, times out, or returns an invalid response, limiting falls back to an expiring in-process map. When it exceeds 2,000 entries, expired entries are removed and oldest entries are evicted to 1,800. This keeps local development usable but is degraded in production because separate instances have separate counters. Production must configure the shared backend and monitor the `rate_limit_degraded` warning.
 
 ## Guest storage
 
-`lib/guest-trip-history.ts` provides a versioned persistence boundary instead of letting UI components write arbitrary storage objects. It validates stored values on read, drops malformed/unsupported entries, bounds user-controlled strings, recalculates fingerprints, sorts newest-first, deduplicates, and keeps at most 20 records.
+`lib/guest-trip-history.ts` provides a versioned persistence boundary instead of letting UI components write arbitrary storage objects. New version-2 entries require structured city/place endpoint pairs and persist same-city/fallback/provider intent with compact analysis data. It validates stored values on read, drops malformed/unsupported entries, bounds user-controlled strings, recalculates fingerprints, sorts newest-first, deduplicates, and keeps at most 20 records.
 
-IndexedDB is primary. localStorage is a fallback and is opportunistically migrated into IndexedDB on a successful read. sessionStorage carries one re-analysis request back to the planner. Storage events and an application event keep open views synchronized within browser limits.
+Version-1 history is converted without inventing city selections: legacy labels/coordinates remain displayable, the fingerprint is recomputed, and `requiresCityConfirmation` blocks re-analysis until cities are selected. IndexedDB database version 2 reuses the store and opportunistically rewrites merged valid v1/v2 IndexedDB/localStorage data after a successful read. The legacy source is cleared only after the rewrite succeeds. sessionStorage carries one re-analysis request back to the planner and reads both restore-key versions. Trip drafts use v3; unverifiable v2 flat drafts preserve text but require confirmation.
 
 Guest records are compact decision summaries. They are not raw analysis responses and are not uploaded. See [Security and privacy](SECURITY.md) for the retained fields.
 
 ## Authenticated persistence boundary
 
-There is no authenticated runtime path. `db/migrations/0001_account_trip_history.sql` is a reviewed PostgreSQL foundation only. The `/account` page detects configuration names to explain readiness, but deliberately provides no credential form, cookie, callback, or cloud write.
+There is no authenticated runtime path. `db/migrations/0001_account_trip_history.sql` and additive `0002_structured_trip_locations.sql` are reviewed PostgreSQL foundations only. The second migration leaves existing rows as location schema v1 and requires complete, coordinate-consistent structured JSON for future v2 rows. The `/account` page detects configuration names to explain readiness, but deliberately provides no credential form, cookie, callback, or cloud write.
 
 Before activation, the project needs all of the following:
 
@@ -257,7 +267,7 @@ See [Database and account readiness](DATABASE.md).
 
 ## Observability and health
 
-Every geocode/analysis request receives a correlation ID and success duration. Successful analyses emit server-side routing, sampling, forecast, risk-analysis, departure-comparison, and total timings. Failures are emitted as single-line structured JSON with a stage and duration for ingestion by the hosting platform. Logs should be configured with access controls and finite retention; exact addresses and raw request bodies should not be added.
+Every search/analysis request receives a correlation ID and success duration. Search completion logs include only query length, country code, counts, cache status, provider label, and a unit-note flag; they omit query text, labels, coordinates, and provider IDs. Browser location analytics are local custom events with similarly bounded metadata and no installed network adapter. Successful analyses emit server-side routing, sampling, forecast, risk-analysis, departure-comparison, and total timings. Failures are emitted as single-line structured JSON with a stage and duration for ingestion by the hosting platform. Logs should be configured with access controls and finite retention; exact addresses and raw request bodies should not be added.
 
 `GET /api/health` checks that the application process is running and whether the routing key exists. It does not make live provider, Redis, authentication, or database calls, so `ready` is configuration readiness rather than an end-to-end service guarantee.
 

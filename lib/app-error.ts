@@ -1,4 +1,22 @@
 export type AppErrorCode =
+  | "START_CITY_EMPTY"
+  | "START_CITY_UNRESOLVED"
+  | "START_CITY_NOT_FOUND"
+  | "START_CITY_AMBIGUOUS"
+  | "DESTINATION_CITY_EMPTY"
+  | "DESTINATION_CITY_UNRESOLVED"
+  | "DESTINATION_CITY_NOT_FOUND"
+  | "DESTINATION_CITY_AMBIGUOUS"
+  | "SHARED_CITY_UNRESOLVED"
+  | "START_PLACE_UNRESOLVED"
+  | "START_PLACE_NOT_FOUND"
+  | "START_PLACE_OUTSIDE_SELECTED_CITY"
+  | "START_PLACE_IMPRECISE"
+  | "DESTINATION_PLACE_UNRESOLVED"
+  | "DESTINATION_PLACE_NOT_FOUND"
+  | "DESTINATION_PLACE_OUTSIDE_SELECTED_CITY"
+  | "DESTINATION_PLACE_IMPRECISE"
+  | "SAME_EFFECTIVE_LOCATION"
   | "ORIGIN_EMPTY"
   | "DESTINATION_EMPTY"
   | "BOTH_LOCATIONS_EMPTY"
@@ -41,7 +59,15 @@ export type AppErrorCode =
   | "INTERNAL_ANALYSIS_ERROR"
   | "CONFIGURATION_ERROR";
 
-export type AppErrorField = "origin" | "destination" | "departure" | "general";
+export type AppErrorField =
+  | "startCity"
+  | "startPlace"
+  | "destinationCity"
+  | "destinationPlace"
+  | "origin"
+  | "destination"
+  | "departure"
+  | "general";
 
 type ErrorDefinition = {
   userTitle: string;
@@ -52,6 +78,132 @@ type ErrorDefinition = {
 };
 
 const ERROR_DEFINITIONS: Record<AppErrorCode, ErrorDefinition> = {
+  START_CITY_EMPTY: {
+    userTitle: "Choose a starting city.",
+    userMessage: "Select a city from the suggestions before analyzing the route.",
+    field: "startCity",
+    retryable: false,
+    statusCode: 400,
+  },
+  START_CITY_UNRESOLVED: {
+    userTitle: "Choose a starting city.",
+    userMessage: "Select a city from the suggestions before analyzing the route.",
+    field: "startCity",
+    retryable: false,
+    statusCode: 422,
+  },
+  START_CITY_NOT_FOUND: {
+    userTitle: "We couldn’t find the starting city.",
+    userMessage: "Check the spelling and include a state, province, or country when helpful.",
+    field: "startCity",
+    retryable: false,
+    statusCode: 422,
+  },
+  START_CITY_AMBIGUOUS: {
+    userTitle: "Choose the correct starting city.",
+    userMessage: "Select the city with the intended region and country.",
+    field: "startCity",
+    retryable: false,
+    statusCode: 422,
+  },
+  DESTINATION_CITY_EMPTY: {
+    userTitle: "Choose a destination city.",
+    userMessage: "Select a city from the suggestions before analyzing the route.",
+    field: "destinationCity",
+    retryable: false,
+    statusCode: 400,
+  },
+  DESTINATION_CITY_UNRESOLVED: {
+    userTitle: "Choose a destination city.",
+    userMessage: "Select a city from the suggestions before analyzing the route.",
+    field: "destinationCity",
+    retryable: false,
+    statusCode: 422,
+  },
+  DESTINATION_CITY_NOT_FOUND: {
+    userTitle: "We couldn’t find the destination city.",
+    userMessage: "Check the spelling and include a state, province, or country when helpful.",
+    field: "destinationCity",
+    retryable: false,
+    statusCode: 422,
+  },
+  DESTINATION_CITY_AMBIGUOUS: {
+    userTitle: "Choose the correct destination city.",
+    userMessage: "Select the city with the intended region and country.",
+    field: "destinationCity",
+    retryable: false,
+    statusCode: 422,
+  },
+  SHARED_CITY_UNRESOLVED: {
+    userTitle: "Choose the shared city.",
+    userMessage: "Both route points need a confirmed city before place search is available.",
+    field: "startCity",
+    retryable: false,
+    statusCode: 422,
+  },
+  START_PLACE_UNRESOLVED: {
+    userTitle: "Choose a starting address or leave it blank.",
+    userMessage: "Select a suggested location in the starting city, or clear the field to use the city.",
+    field: "startPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  START_PLACE_NOT_FOUND: {
+    userTitle: "We couldn’t find that starting address.",
+    userMessage: "Check the street number and name, try a nearby business or landmark, or use the selected city.",
+    field: "startPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  START_PLACE_OUTSIDE_SELECTED_CITY: {
+    userTitle: "That starting point is outside the selected city.",
+    userMessage: "Update the city or choose another result within it.",
+    field: "startPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  START_PLACE_IMPRECISE: {
+    userTitle: "That starting-point match is approximate.",
+    userMessage: "Choose a more precise result or leave the field blank to use the city center explicitly.",
+    field: "startPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  DESTINATION_PLACE_UNRESOLVED: {
+    userTitle: "Choose a destination address or leave it blank.",
+    userMessage: "Select a suggested location in the destination city, or clear the field to use the city.",
+    field: "destinationPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  DESTINATION_PLACE_NOT_FOUND: {
+    userTitle: "We couldn’t find that destination address.",
+    userMessage: "Check the street number and name, try a nearby business or landmark, or use the selected city.",
+    field: "destinationPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  DESTINATION_PLACE_OUTSIDE_SELECTED_CITY: {
+    userTitle: "That destination is outside the selected city.",
+    userMessage: "Update the city or choose another result within it.",
+    field: "destinationPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  DESTINATION_PLACE_IMPRECISE: {
+    userTitle: "That destination match is approximate.",
+    userMessage: "Choose a more precise result or leave the field blank to use the city center explicitly.",
+    field: "destinationPlace",
+    retryable: false,
+    statusCode: 422,
+  },
+  SAME_EFFECTIVE_LOCATION: {
+    userTitle: "The starting point and destination are the same.",
+    userMessage: "Choose two different addresses or places.",
+    field: "general",
+    retryable: false,
+    statusCode: 422,
+  },
   ORIGIN_EMPTY: {
     userTitle: "Enter a starting location.",
     userMessage: "Choose a suggested address, place, or city before analyzing.",
@@ -775,7 +927,7 @@ export function validateAnalyzeLocations(payload: unknown): AppError | null {
       payload.destination as LocationPayload,
     ) < 0.01
   ) {
-    return new AppError("SAME_ORIGIN_AND_DESTINATION");
+    return new AppError("SAME_EFFECTIVE_LOCATION");
   }
 
   return null;

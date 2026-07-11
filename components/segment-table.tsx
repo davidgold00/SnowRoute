@@ -1,5 +1,3 @@
-import type { KeyboardEvent } from "react";
-
 import { RiskPill } from "@/components/status-pill";
 import type { RouteSample } from "@/lib/types";
 
@@ -32,13 +30,6 @@ export function SegmentTable({
   activeSampleId: string | null;
   onSelectSample: (sampleId: string) => void;
 }) {
-  function handleKeyboardSelect(event: KeyboardEvent, sampleId: string) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onSelectSample(sampleId);
-    }
-  }
-
   return (
     <section className="glass-panel rounded-2xl p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -51,21 +42,27 @@ export function SegmentTable({
           </h2>
         </div>
         <p className="max-w-md text-sm leading-6 text-slate-300">
-          Select any row to highlight that checkpoint on the map and timeline.
+          Use “Show on map” to highlight a checkpoint on the map and timeline.
         </p>
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-white/10">
         <div className="segment-scroll hidden max-h-[520px] overflow-auto md:block">
           <table className="min-w-full divide-y divide-white/8 text-left">
+            <caption className="sr-only">
+              Forecast conditions and modeled risk at each route checkpoint
+            </caption>
             <thead className="sticky top-0 bg-[#0e1728]/95 backdrop-blur">
               <tr className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                <th className="px-4 py-4 font-medium">ETA</th>
-                <th className="px-4 py-4 font-medium">Distance</th>
-                <th className="px-4 py-4 font-medium">Conditions</th>
-                <th className="px-4 py-4 font-medium">Visibility</th>
-                <th className="px-4 py-4 font-medium">Wind</th>
-                <th className="px-4 py-4 font-medium">Risk</th>
+                <th scope="col" className="px-4 py-4 font-medium">ETA</th>
+                <th scope="col" className="px-4 py-4 font-medium">Distance</th>
+                <th scope="col" className="px-4 py-4 font-medium">Conditions</th>
+                <th scope="col" className="px-4 py-4 font-medium">Visibility</th>
+                <th scope="col" className="px-4 py-4 font-medium">Wind</th>
+                <th scope="col" className="px-4 py-4 font-medium">Risk</th>
+                <th scope="col" className="px-4 py-4 font-medium">
+                  <span className="sr-only">Map action</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/6">
@@ -75,14 +72,10 @@ export function SegmentTable({
                 return (
                   <tr
                     key={sample.id}
-                    tabIndex={0}
-                    aria-selected={isActive}
-                    onClick={() => onSelectSample(sample.id)}
-                    onKeyDown={(event) => handleKeyboardSelect(event, sample.id)}
-                    className={`cursor-pointer transition ${
+                    className={`transition ${
                       isActive
                         ? "bg-cyan-400/[0.12] shadow-[inset_3px_0_0_rgba(125,211,252,0.9)]"
-                        : "bg-transparent hover:bg-white/[0.04] focus:bg-white/[0.06]"
+                        : "bg-transparent"
                     }`}
                   >
                     <td className="px-4 py-4 align-top">
@@ -128,6 +121,25 @@ export function SegmentTable({
                         </span>
                         <RiskPill label={sample.label} />
                       </div>
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      <button
+                        type="button"
+                        aria-pressed={isActive}
+                        aria-label={
+                          isActive
+                            ? `Checkpoint at ${sample.etaDisplay} is selected on the map`
+                            : `Show checkpoint at ${sample.etaDisplay} on the map`
+                        }
+                        onClick={() => onSelectSample(sample.id)}
+                        className={`min-h-11 whitespace-nowrap rounded-lg border px-3 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 ${
+                          isActive
+                            ? "border-cyan-100/40 bg-cyan-300/[0.13] text-cyan-50"
+                            : "border-white/12 bg-white/[0.035] text-slate-200 hover:bg-white/[0.07]"
+                        }`}
+                      >
+                        {isActive ? "Selected" : "Show on map"}
+                      </button>
                     </td>
                   </tr>
                 );

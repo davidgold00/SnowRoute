@@ -55,6 +55,10 @@ html {
   scroll-behavior: smooth;
 }
 
+#main-content:focus {
+  outline: none;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -218,8 +222,9 @@ summary,
   color: #f2f8ff;
 }
 
-.map-shell .leaflet-interactive {
-  outline: none;
+.map-shell .leaflet-interactive:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
 }
 
 .site-shell {
@@ -344,5 +349,19 @@ summary,
   .map-shell {
     animation: lift-in 560ms ease both;
   }
+}
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

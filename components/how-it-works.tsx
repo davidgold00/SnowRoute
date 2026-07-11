@@ -31,9 +31,12 @@ export function HowItWorks() {
               1. Build the route
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              Your selected locations are geocoded and sent through OpenRouteService for
-              driving directions. The route geometry, distance, and estimated duration are
-              kept server-side while the request is validated with Zod.
+              You choose each city first, then optionally add an address, business, or
+              landmark. SnowRoute uses the city&apos;s country, center, and available bounds to
+              make place search less ambiguous. A confirmed place becomes the route point;
+              otherwise, the app clearly uses the provider&apos;s approximate city point.
+              Validated coordinates are then sent server-side to OpenRouteService for driving
+              directions.
             </p>
           </article>
 
@@ -110,13 +113,15 @@ export function HowItWorks() {
             Technology and data sources
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            The interface runs on Next.js and React. OpenRouteService supplies geocoding
-            and route directions; Open-Meteo supplies the hourly weather forecast; Leaflet
+            The interface runs on Next.js and React. OpenRouteService&apos;s Pelias-based
+            geocoder supplies normalized city and place candidates, and OpenRouteService
+            supplies route directions. Open-Meteo supplies hourly forecast fields; Leaflet
             and OpenStreetMap render the route map; Recharts renders the risk timeline;
-            date-fns-tz handles time-zone conversion. Provider credentials stay on the
-            server. SnowRoute does not ingest official alerts, operate road sensors,
-            dispatch plows, verify closures or stopping facilities, or guarantee conditions
-            at a specific location.
+            date-fns-tz handles time-zone conversion. Provider calls and credentials stay
+            on the server, and exact search text is excluded from SnowRoute analytics.
+            SnowRoute does not ingest official alerts, operate road sensors, dispatch plows,
+            verify closures or stopping facilities, or guarantee conditions at a specific
+            location.
           </p>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-cyan-50">
             <a href="https://openrouteservice.org/" target="_blank" rel="noreferrer" className="underline decoration-cyan-100/40 underline-offset-4 hover:text-white">

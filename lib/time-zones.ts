@@ -1,6 +1,25 @@
+import { formatInTimeZone } from "date-fns-tz";
+
 import type { LocationSuggestion } from "@/lib/types";
 
 export const MAX_WAYPOINTS = 2;
+const DEPARTURE_STEP_MS = 15 * 60 * 1000;
+
+export function getDefaultDepartureTimeLocal(
+  timeZone: string,
+  now = new Date(),
+) {
+  const oneHourAhead = now.getTime() + 60 * 60 * 1000;
+  const roundedInstant = new Date(
+    Math.ceil(oneHourAhead / DEPARTURE_STEP_MS) * DEPARTURE_STEP_MS,
+  );
+
+  try {
+    return formatInTimeZone(roundedInstant, timeZone, "yyyy-MM-dd'T'HH:mm");
+  } catch {
+    return formatInTimeZone(roundedInstant, "UTC", "yyyy-MM-dd'T'HH:mm");
+  }
+}
 
 export type TimeZoneOption = {
   value: string;

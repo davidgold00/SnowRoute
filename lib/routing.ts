@@ -5,32 +5,18 @@ import {
   mapProviderException,
   mapProviderResponseError,
 } from "@/lib/app-error";
-import {
-  type GeocodeFeature,
-  normalizeGeocodeSuggestions,
-  normalizeLocationQuery,
-} from "@/lib/location";
-import type { Coordinate, LocationSuggestion } from "@/lib/types";
+import { searchLegacyLocations } from "@/lib/geocoding";
+import type { Coordinate } from "@/lib/types";
 
 const ORS_BASE_URL = "https://api.openrouteservice.org";
-const GEOCODE_TTL_MS = 1000 * 60 * 60 * 12;
 const ROUTE_TTL_MS = 1000 * 60 * 10;
-const GEOCODE_TIMEOUT_MS = 8000;
 const ROUTE_TIMEOUT_MS = 12000;
-const GEOCODE_CACHE_MAX_ENTRIES = 500;
 const ROUTE_CACHE_MAX_ENTRIES = 250;
 const MAX_ROUTE_DISTANCE_KM = 3_000;
 
 type CacheEntry<T> = {
   expiresAt: number;
   value: T;
-};
-
-type GeocodeResponse = {
-  features?: GeocodeFeature[];
-  error?: {
-    message?: string;
-  };
 };
 
 type DirectionsResponse = {
@@ -46,7 +32,6 @@ type DirectionsResponse = {
   };
 };
 
-const geocodeCache = new Map<string, CacheEntry<LocationSuggestion[]>>();
 const routeCache = new Map<
   string,
   CacheEntry<{
@@ -122,87 +107,8 @@ async function parseApiError(response: Response) {
 }
 
 export async function geocodeLocation(query: string, signal?: AbortSignal) {
-  const cleanedQuery = normalizeLocationQuery(query);
-  const normalizedQuery = cleanedQuery.toLocaleLowerCase();
-
-  if (normalizedQuery.length < 2) {
-    return [];
-  }
-
-  const cached = getCachedValue(geocodeCache, normalizedQuery);
-
-  if (cached) {
-    return cached;
-  }
-
-  const params = new URLSearchParams({
-    text: cleanedQuery,
-    size: "10",
-    layers: [
-      "address",
-      "venue",
-      "street",
-      "locality",
-      "localadmin",
-      "county",
-      "region",
-    ].join(","),
-    api_key: getOrsApiKey(),
-  });
-
-  let response: Response;
-
-  try {
-    const timeoutSignal = AbortSignal.timeout(GEOCODE_TIMEOUT_MS);
-    response = await fetch(`${ORS_BASE_URL}/geocode/search?${params}`, {
-      headers: {
-        Accept: "application/json",
-      },
-      next: {
-        revalidate: 60 * 60 * 12,
-      },
-      signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
-    });
-  } catch (error) {
-    throw mapProviderException("geocoding", error);
-  }
-
-  if (!response.ok) {
-    throw mapProviderResponseError(
-      "geocoding",
-      response.status,
-      await parseApiError(response),
-    );
-  }
-
-  let payload: GeocodeResponse;
-
-  try {
-    payload = (await response.json()) as GeocodeResponse;
-  } catch (error) {
-    throw new AppError("GEOCODER_INVALID_RESPONSE", {
-      cause: error,
-      technicalContext: { providerStatus: response.status, stage: "geocoding" },
-    });
-  }
-
-  if (!Array.isArray(payload.features)) {
-    throw new AppError("GEOCODER_INVALID_RESPONSE", {
-      technicalContext: { providerStatus: response.status, stage: "geocoding" },
-    });
-  }
-
-  const suggestions = normalizeGeocodeSuggestions(payload.features);
-
-  setCachedValue(
-    geocodeCache,
-    normalizedQuery,
-    GEOCODE_TTL_MS,
-    suggestions,
-    GEOCODE_CACHE_MAX_ENTRIES,
-  );
-
-  return suggestions;
+  const result = await searchLegacyLocations(query, { signal });
+  return result.data;
 }
 
 export async function getRouteDirections(stops: Coordinate[], signal?: AbortSignal) {

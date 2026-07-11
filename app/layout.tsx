@@ -26,8 +26,16 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth">
       <body className="min-h-full bg-[#08161d] text-slate-100">
         <div className="site-shell">
+          <a
+            href="#main-content"
+            className="fixed left-4 top-3 z-[1000] -translate-y-24 rounded-lg bg-cyan-100 px-4 py-3 text-sm font-bold text-slate-950 shadow-xl transition focus:translate-y-0"
+          >
+            Skip to main content
+          </a>
           <SiteHeader />
-          {children}
+          <div id="main-content" tabIndex={-1}>
+            {children}
+          </div>
           <SiteFooter />
         </div>
       </body>

@@ -119,6 +119,32 @@ export async function POST(request: Request) {
       });
     }
 
+    if (payload.data.effectiveEndpoints) {
+      const originMatches =
+        Math.abs(
+          payload.data.origin.lat - payload.data.effectiveEndpoints.origin.latitude,
+        ) < 0.000001 &&
+        Math.abs(
+          payload.data.origin.lon - payload.data.effectiveEndpoints.origin.longitude,
+        ) < 0.000001;
+      const destinationMatches =
+        Math.abs(
+          payload.data.destination.lat -
+            payload.data.effectiveEndpoints.destination.latitude,
+        ) < 0.000001 &&
+        Math.abs(
+          payload.data.destination.lon -
+            payload.data.effectiveEndpoints.destination.longitude,
+        ) < 0.000001;
+
+      if (!originMatches || !destinationMatches) {
+        throw new AppError("INVALID_REQUEST", {
+          userTitle: "The selected locations changed unexpectedly.",
+          userMessage: "Review the route locations and submit the analysis again.",
+        });
+      }
+    }
+
     const departureDate = new Date(payload.data.departureTimeUtc);
     const now = Date.now();
     const maxForecastDate = now + MAX_FORECAST_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000;
