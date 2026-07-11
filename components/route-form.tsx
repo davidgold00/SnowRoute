@@ -119,20 +119,20 @@ export function RouteForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="glass-panel route-builder-panel space-y-6 rounded-2xl p-5 sm:p-6 lg:p-7"
+      className="feature-surface route-builder-panel space-y-6 p-5 sm:p-7 lg:p-8"
       noValidate
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#d9ddd6] pb-5">
         <div>
           <p className="eyebrow">Trip details</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.025em] text-[#202927]">
             Where and when are you driving?
           </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#596762]">
             Start with each city. Exact addresses and places are optional.
           </p>
         </div>
-        <span className="rounded-md border border-cyan-200/20 bg-cyan-300/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-100">
+        <span className="text-xs font-semibold text-[#6d7a76]">
           No account required
         </span>
       </div>
@@ -145,21 +145,21 @@ export function RouteForm({
         onStartCitySelected={onStartCitySelected}
       />
 
-      <section className="space-y-4 border-t border-white/10 pt-6" aria-labelledby="departure-heading">
+      <section className="space-y-4 border-t border-[#d9ddd6] pt-6" aria-labelledby="departure-heading">
         <div className="flex items-center gap-3">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full border border-cyan-100/20 bg-cyan-300/[0.07] font-mono text-[10px] font-semibold text-cyan-100">
-            4
+          <span className="shrink-0 font-mono text-xs font-semibold text-[#176c68]">
+            04
           </span>
           <div>
-            <h3 id="departure-heading" className="text-sm font-semibold text-slate-100">
+            <h3 id="departure-heading" className="text-sm font-semibold text-[#202927]">
               Departure
             </h3>
-            <p className="mt-0.5 text-xs leading-5 text-slate-400">
+            <p className="mt-0.5 text-xs leading-5 text-[#6d7a76]">
               Defaults to today, about one hour from now.
             </p>
           </div>
         </div>
-        <div className="space-y-2 rounded-xl border border-white/10 bg-black/10 p-4">
+        <div className="space-y-2">
           <DeparturePicker
             value={departureTimeLocal}
             timeZone={timeZone}
@@ -169,29 +169,29 @@ export function RouteForm({
             onChange={onDepartureTimeChange}
           />
           {fieldErrors.departure ? (
-            <p id={departureErrorId} role="alert" className="text-xs leading-5 text-rose-200">
+            <p id={departureErrorId} role="alert" className="text-xs leading-5 text-[#b33a32]">
               {fieldErrors.departure}
             </p>
           ) : null}
         </div>
       </section>
 
-      <details className="group rounded-xl border border-white/10 bg-white/[0.025]">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-100">
+      <details className="group rounded-lg border border-[#d9ddd6] bg-[#fafaf7]">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-[#202927]">
           <span>
             Trip options
-            <span className="ml-2 text-xs font-normal text-slate-400">
+            <span className="ml-2 text-xs font-normal text-[#6d7a76]">
               Stops and time zone
             </span>
           </span>
-          <span aria-hidden="true" className="text-lg text-cyan-100 transition group-open:rotate-45">+</span>
+          <span aria-hidden="true" className="text-lg text-[#176c68] transition group-open:rotate-45">+</span>
         </summary>
-        <div className="space-y-6 border-t border-white/10 p-4">
+        <div className="space-y-6 border-t border-[#d9ddd6] p-4">
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-100">Stops on the way</p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">
+                <p className="text-sm font-semibold text-[#202927]">Stops on the way</p>
+                <p className="mt-1 text-xs leading-5 text-[#6d7a76]">
                   Add only a stop that changes the route or timing.
                 </p>
               </div>
@@ -199,7 +199,7 @@ export function RouteForm({
                 type="button"
                 disabled={isSubmitting || waypointLimitReached}
                 onClick={onWaypointAdd}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-cyan-200/25 bg-cyan-300/10 px-3 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:opacity-60"
+                className="button-secondary min-h-11 shrink-0 gap-1.5 px-3 text-xs text-[#176c68] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span aria-hidden="true" className="text-base leading-none">+</span>
                 Add stop
@@ -209,13 +209,13 @@ export function RouteForm({
             {waypoints.length > 0 ? (
               <div className="grid gap-3">
                 {waypoints.map((waypoint, index) => (
-                  <div key={waypoint.id} className="rounded-xl border border-white/10 bg-black/10 p-4">
+                  <div key={waypoint.id} className="rounded-lg border border-[#d9ddd6] bg-white p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-100">Stop {index + 1}</p>
+                      <p className="text-sm font-semibold text-[#202927]">Stop {index + 1}</p>
                       <button
                         type="button"
                         onClick={() => onWaypointRemove(waypoint.id)}
-                        className="min-h-11 rounded-lg px-3 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+                        className="min-h-11 rounded-md px-3 text-xs font-semibold text-[#596762] transition hover:bg-[#eceee9] hover:text-[#202927]"
                       >
                         Remove
                       </button>
@@ -234,13 +234,13 @@ export function RouteForm({
               </div>
             ) : null}
             {fieldErrors.waypoints ? (
-              <p role="alert" className="text-xs leading-5 text-rose-200">
+              <p role="alert" className="text-xs leading-5 text-[#b33a32]">
                 {fieldErrors.waypoints}
               </p>
             ) : null}
           </section>
 
-          <section className="rounded-xl border border-white/10 bg-black/10 p-4">
+          <section className="rounded-lg border border-[#d9ddd6] bg-white p-4">
             <TimeZoneSelector
               value={timeZone}
               disabled={isSubmitting}
@@ -253,45 +253,45 @@ export function RouteForm({
         </div>
       </details>
 
-      <div className="space-y-3 border-t border-white/10 pt-6">
+      <div className="space-y-3 border-t border-[#d9ddd6] pt-6">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
           <button
             type="submit"
             disabled={isSubmitting}
             aria-busy={isSubmitting}
-            className="flex h-14 w-full items-center justify-center rounded-xl bg-[linear-gradient(135deg,#b7f0ff,#5bd0f2_52%,#8be8c7)] px-5 text-sm font-bold uppercase tracking-[0.16em] text-slate-950 shadow-[0_14px_34px_rgba(91,208,242,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
+            className="button-primary h-13 w-full px-5"
           >
             {isSubmitting ? "Checking driving hazards…" : "Analyze route"}
           </button>
           <button
             type="button"
             onClick={isSubmitting ? onCancelAnalysis : onClearTrip}
-            className={`min-h-14 rounded-xl border px-4 text-sm font-semibold transition ${
+            className={`min-h-13 rounded-md border px-4 text-sm font-semibold transition ${
               isSubmitting
-                ? "border-amber-200/25 bg-amber-200/[0.06] text-amber-50 hover:bg-amber-200/[0.1]"
-                : "border-white/12 bg-white/[0.035] text-slate-100 hover:bg-white/[0.07]"
+                ? "border-[#d7bd7c] bg-[#fbf7ed] text-[#796027] hover:bg-[#f4ead0]"
+                : "border-[#aeb8b1] bg-white text-[#384641] hover:bg-[#eceee9]"
             }`}
           >
             {isSubmitting ? "Cancel" : "Clear trip"}
           </button>
         </div>
         {!isSubmitting && !isReady ? (
-          <p className="text-xs leading-5 text-slate-400">
+          <p className="text-xs leading-5 text-[#6d7a76]">
             Confirm both cities. Optional place text must be selected from suggestions or cleared.
           </p>
         ) : null}
         {isSubmitting ? (
-          <div role="status" className="rounded-xl border border-cyan-100/15 bg-cyan-300/[0.05] px-4 py-3">
-            <p className="text-sm font-semibold text-cyan-50">
+          <div role="status" className="rounded-md border-l-3 border-[#176c68] bg-[#e3f0ee] px-4 py-3">
+            <p className="text-sm font-semibold text-[#155d59]">
               Building the route, checking driving hazards, and preparing the recommendation.
             </p>
-            <p className="mt-1 text-xs leading-5 text-slate-400">
+            <p className="mt-1 text-xs leading-5 text-[#50605b]">
               This can take a few moments. Your trip details will remain available if you cancel.
             </p>
           </div>
         ) : null}
         {locations.start.city && destinationCity ? (
-          <p className="text-xs leading-5 text-slate-500">
+          <p className="text-xs leading-5 text-[#6d7a76]">
             {locations.start.place
               ? describeSelectedPlace(locations.start.place, "starting")
               : `Approximate point in ${locations.start.city.cityName}`}

@@ -1018,15 +1018,15 @@ export function AnalyzeTripShell() {
   ];
 
   return (
-    <div className="min-h-screen pb-16 pt-4">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="glass-panel rounded-2xl px-5 py-5 sm:px-6 lg:px-7">
+    <div className="min-h-screen pb-16">
+      <div className="page-container py-8 sm:py-12">
+        <header className="max-w-3xl border-b border-[#d9ddd6] pb-7">
           <div className="max-w-3xl space-y-3">
             <p className="eyebrow">Analyze a trip</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            <h1 className="text-3xl font-semibold tracking-[-0.035em] text-[#202927] sm:text-4xl">
               Know whether this drive is smart to start.
             </h1>
-            <p className="max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+            <p className="max-w-2xl text-sm leading-7 text-[#596762] sm:text-base">
               SnowRoute matches forecast conditions to your arrival time, then gives a
               clear drive, delay, hold, or avoid recommendation.
             </p>
@@ -1034,7 +1034,7 @@ export function AnalyzeTripShell() {
         </header>
 
         <nav
-          className="mt-5 grid gap-2 rounded-2xl border border-white/10 bg-black/15 p-2 sm:grid-cols-3"
+          className="mt-6 grid border-b border-[#cfd5ce] sm:grid-cols-3"
           aria-label="Trip analysis stages"
           role="tablist"
         >
@@ -1054,18 +1054,18 @@ export function AnalyzeTripShell() {
                 onClick={() => selectStage(stage.id)}
                 onKeyDown={(event) => handleStageKeyDown(event, stage.id)}
                 tabIndex={isActive ? 0 : -1}
-                className={`flex min-h-16 items-center gap-3 rounded-xl px-3 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-45 ${
+                className={`flex min-h-16 items-center gap-3 border-b-2 px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ${
                   isActive
-                    ? "bg-cyan-300/[0.14] shadow-[inset_0_0_0_1px_rgba(186,230,253,0.3)]"
-                    : "hover:bg-white/[0.045]"
+                    ? "border-[#176c68] bg-[#e3f0ee]"
+                    : "border-transparent hover:bg-[#eceee9]"
                 }`}
               >
-                <span className="font-mono text-xs font-semibold text-cyan-100/80">
+                <span className="font-mono text-xs font-semibold text-[#176c68]">
                   {stage.number}
                 </span>
                 <span>
-                  <span className="block text-sm font-semibold text-white">{stage.label}</span>
-                  <span className="mt-0.5 block text-xs text-slate-400">{stage.detail}</span>
+                  <span className="block text-sm font-semibold text-[#202927]">{stage.label}</span>
+                  <span className="mt-0.5 block text-xs text-[#6d7a76]">{stage.detail}</span>
                 </span>
               </button>
             );
@@ -1083,8 +1083,8 @@ export function AnalyzeTripShell() {
         </div>
 
         {analysisError ? (
-          <div className="mt-5 rounded-2xl border border-rose-300/20 bg-[linear-gradient(135deg,rgba(251,113,133,0.14),rgba(255,255,255,0.03))] px-5 py-4 text-sm text-rose-50 shadow-[0_18px_48px_rgba(37,9,15,0.24)]">
-            <p className="eyebrow text-rose-100/80">Analysis issue</p>
+          <div className="page-alert mt-5 rounded-md px-5 py-4 text-sm">
+            <p className="text-sm font-semibold">Analysis issue</p>
             <p className="mt-2 max-w-3xl leading-6">{analysisError}</p>
           </div>
         ) : null}
@@ -1095,31 +1095,31 @@ export function AnalyzeTripShell() {
           tabIndex={-1}
           role="tabpanel"
           aria-labelledby={`trip-stage-${activeStage}`}
-          className="mt-6 scroll-mt-24 outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70"
+          className="mt-7 scroll-mt-24 outline-none"
         >
           {activeStage === "input" ? (
             <div className="space-y-5">
               {restoreNotice ? (
                 <section
                   role="status"
-                  className="rounded-2xl border border-cyan-100/18 bg-cyan-300/[0.06] px-5 py-4 text-sm leading-6 text-cyan-50"
+                  className="inline-alert rounded-md px-5 py-4 text-sm leading-6"
                 >
                   {restoreNotice}
                 </section>
               ) : null}
 
               {analysis ? (
-                <section className="rounded-2xl border border-cyan-100/15 bg-cyan-300/[0.06] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+                <section className="rounded-md border border-[#b9d5d0] bg-[#e3f0ee] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
                   <div>
-                    <p className="text-sm font-semibold text-cyan-50">A route analysis is ready.</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-300">
+                    <p className="text-sm font-semibold text-[#155d59]">A route analysis is ready.</p>
+                    <p className="mt-1 text-sm leading-6 text-[#50605b]">
                       Updating the details below will not change it until you analyze again.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => selectStage("analysis")}
-                    className="mt-3 min-h-10 rounded-lg border border-cyan-100/30 bg-cyan-200/12 px-4 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-200/18 sm:mt-0"
+                    className="button-secondary mt-3 min-h-10 px-4 text-sm text-[#176c68] sm:mt-0"
                   >
                     View analysis
                   </button>
@@ -1187,13 +1187,13 @@ export function AnalyzeTripShell() {
                 onCancelAnalysis={handleCancelAnalysis}
                 onSubmit={handleAnalyze}
               /> : (
-                <section aria-label="Preparing route planner" className="glass-panel min-h-[520px] rounded-2xl p-6 motion-safe:animate-pulse">
-                  <div className="h-6 w-52 rounded bg-white/[0.08]" />
+                <section aria-label="Preparing route planner" className="feature-surface min-h-[520px] p-6 motion-safe:animate-pulse">
+                  <div className="h-6 w-52 rounded bg-[#dfe4de]" />
                   <div className="mt-8 grid gap-4 lg:grid-cols-2">
-                    <div className="h-24 rounded-xl bg-white/[0.05]" />
-                    <div className="h-24 rounded-xl bg-white/[0.05]" />
+                    <div className="h-24 rounded-lg bg-[#eceee9]" />
+                    <div className="h-24 rounded-lg bg-[#eceee9]" />
                   </div>
-                  <div className="mt-6 h-44 rounded-xl bg-white/[0.05]" />
+                  <div className="mt-6 h-44 rounded-lg bg-[#eceee9]" />
                 </section>
               )}
             </div>
@@ -1204,44 +1204,42 @@ export function AnalyzeTripShell() {
               {analysisIsStale ? (
                 <section
                   role="status"
-                  className="rounded-2xl border border-amber-200/25 bg-amber-200/[0.07] px-5 py-4 text-sm leading-6 text-amber-50"
+                  className="inline-alert rounded-md px-5 py-4 text-sm leading-6"
                 >
                   <p className="font-semibold">These results reflect the previous trip details.</p>
-                  <p className="mt-1 text-amber-50/80">
+                  <p className="mt-1 text-[#796027]">
                     Your current route, stop, departure, or time zone changed after this
                     analysis. Return to Trip details and analyze again for updated guidance.
                   </p>
                 </section>
               ) : null}
 
-              <DecisionCard decision={analysis.tripDecision} />
-
-              <section className="glass-panel rounded-2xl p-5 sm:p-6 lg:p-7">
+              <section className="border-b border-[#d9ddd6] pb-6">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <p className="eyebrow">Analyzed route</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#202927] sm:text-3xl">
                       {latestRouteName}
                     </h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#596762]">
                       Departure: {analyzedDeparture?.departureTimeLocal.replace("T", " at ")} • {analyzedDeparture?.timeZone}
                     </p>
-                    <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
+                    <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#6d7a76]">
                       <div className="flex gap-1.5">
-                        <dt className="font-semibold text-slate-300">Distance</dt>
+                        <dt className="font-semibold text-[#50605b]">Distance</dt>
                         <dd>{Math.round(analysis.route.distanceKm)} km</dd>
                       </div>
                       <div className="flex gap-1.5">
-                        <dt className="font-semibold text-slate-300">Estimated drive</dt>
+                        <dt className="font-semibold text-[#50605b]">Estimated drive</dt>
                         <dd>{formatTripDuration(analysis.route.durationMinutes)}</dd>
                       </div>
                       <div className="flex gap-1.5">
-                        <dt className="font-semibold text-slate-300">Analyzed</dt>
+                        <dt className="font-semibold text-[#50605b]">Analyzed</dt>
                         <dd><time dateTime={analysis.metadata.analyzedAt}>{formatAnalysisTime(analysis.metadata.analyzedAt)}</time></dd>
                       </div>
                     </dl>
                     {routePrecisionNote ? (
-                      <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/85">
+                      <p className="mt-3 max-w-3xl text-xs leading-5 text-[#796027]">
                         Endpoint precision note: {routePrecisionNote}.
                       </p>
                     ) : null}
@@ -1250,20 +1248,22 @@ export function AnalyzeTripShell() {
                     <button
                       type="button"
                       onClick={() => selectStage("input")}
-                      className="min-h-11 rounded-xl border border-white/12 bg-white/[0.035] px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.07]"
+                      className="button-secondary min-h-11 px-4"
                     >
                       Edit trip
                     </button>
                     <button
                       type="button"
                       onClick={() => selectStage("strategy")}
-                      className="min-h-11 rounded-xl bg-[linear-gradient(135deg,#b7f0ff,#5bd0f2_52%,#8be8c7)] px-4 text-sm font-bold text-slate-950 shadow-[0_10px_28px_rgba(91,208,242,0.18)] transition hover:brightness-105"
+                      className="button-primary min-h-11 px-4"
                     >
                       See suggestions
                     </button>
                   </div>
                 </div>
               </section>
+
+              <DecisionCard decision={analysis.tripDecision} />
 
               <SaferDepartureCard
                 decision={analysis.tripDecision}
@@ -1274,31 +1274,31 @@ export function AnalyzeTripShell() {
 
               <details
                 id="route-details"
-                className="group scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.025]"
+                className="group scroll-mt-24 rounded-lg border border-[#d9ddd6] bg-white"
                 onToggle={(event) => setShowDetailedEvidence(event.currentTarget.open)}
               >
-                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-5 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-100 sm:px-6">
+                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-5 px-5 py-4 sm:px-6">
                   <span>
                     <span className="eyebrow block">Detailed route evidence</span>
-                    <span className="mt-1 block text-sm text-slate-300">
+                    <span className="mt-1 block text-sm text-[#596762]">
                       Map, departure comparison, checkpoints, timeline, and model details
                     </span>
                   </span>
-                  <span aria-hidden="true" className="text-xl text-cyan-100 transition group-open:rotate-45">+</span>
+                  <span aria-hidden="true" className="text-xl text-[#176c68] transition group-open:rotate-45">+</span>
                 </summary>
                 {showDetailedEvidence ? (
-                  <div className="space-y-6 border-t border-white/10 p-5 sm:p-6">
-                    <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
+                  <div className="space-y-6 border-t border-[#d9ddd6] p-5 sm:p-6">
+                    <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#6d7a76]">
                       <div className="flex gap-1.5">
-                        <dt className="font-semibold text-slate-300">Risk model</dt>
+                        <dt className="font-semibold text-[#50605b]">Risk model</dt>
                         <dd>{analysis.metadata.riskModelVersion}</dd>
                       </div>
                       <div className="flex gap-1.5">
-                        <dt className="font-semibold text-slate-300">Route provider</dt>
+                        <dt className="font-semibold text-[#50605b]">Route provider</dt>
                         <dd>{analysis.metadata.routeProvider}</dd>
                       </div>
                       <div className="flex gap-1.5">
-                        <dt className="font-semibold text-slate-300">Weather provider</dt>
+                        <dt className="font-semibold text-[#50605b]">Weather provider</dt>
                         <dd>{analysis.metadata.weatherProvider}</dd>
                       </div>
                     </dl>

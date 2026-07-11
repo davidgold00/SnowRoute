@@ -3,21 +3,21 @@ import type { Recommendation, RiskLabel } from "@/lib/types";
 function pillClasses(tone: string) {
   switch (tone) {
     case "low":
-      return "border-emerald-300/35 bg-emerald-400/12 text-emerald-100";
+      return "border-[#b8d1c2] bg-[#eef6f0] text-[#2f7654]";
     case "moderate":
-      return "border-amber-300/35 bg-amber-400/12 text-amber-100";
+      return "border-[#dec995] bg-[#fbf7ed] text-[#8a5817]";
     case "high":
-      return "border-orange-300/35 bg-orange-400/12 text-orange-100";
+      return "border-[#e2b795] bg-[#fff3e9] text-[#a14c18]";
     case "severe":
-      return "border-rose-300/35 bg-rose-500/14 text-rose-100";
+      return "border-[#e2aaa5] bg-[#fff0ef] text-[#a8322c]";
     case "safe":
-      return "border-emerald-300/35 bg-emerald-400/12 text-emerald-100";
+      return "border-[#b8d1c2] bg-[#eef6f0] text-[#2f7654]";
     case "warning":
-      return "border-amber-300/35 bg-amber-400/12 text-amber-100";
+      return "border-[#dec995] bg-[#fbf7ed] text-[#8a5817]";
     case "danger":
-      return "border-rose-300/35 bg-rose-500/14 text-rose-100";
+      return "border-[#e2aaa5] bg-[#fff0ef] text-[#a8322c]";
     default:
-      return "border-white/15 bg-white/6 text-slate-100";
+      return "border-[#cfd5ce] bg-[#f3f4f1] text-[#50605b]";
   }
 }
 
@@ -30,7 +30,7 @@ function BasePill({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] ${pillClasses(
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${pillClasses(
         tone,
       )}`}
     >

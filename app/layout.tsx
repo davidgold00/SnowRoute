@@ -24,11 +24,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth">
-      <body className="min-h-full bg-[#08161d] text-slate-100">
+      <body className="min-h-full">
         <div className="site-shell">
           <a
             href="#main-content"
-            className="fixed left-4 top-3 z-[1000] -translate-y-24 rounded-lg bg-cyan-100 px-4 py-3 text-sm font-bold text-slate-950 shadow-xl transition focus:translate-y-0"
+            className="fixed -top-20 left-4 z-[1000] rounded-md bg-[#176c68] px-4 py-3 text-sm font-bold text-white shadow-lg transition-[top] focus:top-3"
           >
             Skip to main content
           </a>

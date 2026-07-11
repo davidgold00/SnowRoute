@@ -113,8 +113,8 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
         onClick={() => setIsOpen((current) => !current)}
         className={`inline-flex h-11 w-11 items-center justify-center rounded-full border text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 ${
           isOpen
-            ? "border-cyan-100/55 bg-cyan-200/[0.16] text-cyan-50 shadow-[0_0_0_4px_rgba(125,211,252,0.1)]"
-            : "border-white/16 bg-white/[0.06] text-slate-100 hover:border-cyan-100/35 hover:bg-cyan-200/[0.1]"
+            ? "border-[var(--color-brand)] bg-[var(--color-brand-soft)] text-[var(--color-brand)]"
+            : "border-[var(--color-border-strong)] bg-white text-[var(--color-text-muted)] hover:border-[var(--color-brand)]"
         }`}
       >
         i
@@ -133,10 +133,10 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
                 top: position.top,
                 width: position.width,
               }}
-              className="fixed z-[1000] rounded-2xl border border-cyan-100/20 bg-[#0b1724]/98 p-4 text-left text-sm leading-6 text-slate-100 shadow-[0_24px_70px_rgba(1,8,16,0.72)] backdrop-blur-xl"
+              className="fixed z-[1000] border border-[var(--color-border)] bg-white p-4 text-left text-sm leading-6 text-[var(--color-text)] shadow-[var(--shadow-feature)]"
             >
-              <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-100/80">
+              <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
+                <p className="eyebrow">
                   Info
                 </p>
                 <button
@@ -146,12 +146,12 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
                     setIsOpen(false);
                     buttonRef.current?.focus();
                   }}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-sm font-semibold text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-subtle)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
                 >
                   ×
                 </button>
               </div>
-              <div className="text-slate-100">{children}</div>
+              <div className="text-[var(--color-text)]">{children}</div>
             </div>,
             document.body,
           )

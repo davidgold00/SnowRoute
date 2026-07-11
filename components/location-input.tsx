@@ -21,15 +21,15 @@ type LocationInputProps = {
 function getPlaceTypeTone(placeType: LocationSuggestion["placeType"]) {
   switch (placeType) {
     case "Address":
-      return "border-cyan-200/35 bg-cyan-300/12 text-cyan-50";
+      return "border-teal-300 bg-teal-50 text-teal-800";
     case "Place":
-      return "border-emerald-200/30 bg-emerald-300/10 text-emerald-50";
+      return "border-emerald-300 bg-emerald-50 text-emerald-800";
     case "Street":
-      return "border-sky-200/30 bg-sky-300/10 text-sky-50";
+      return "border-sky-300 bg-sky-50 text-sky-800";
     case "City":
-      return "border-violet-200/25 bg-violet-300/10 text-violet-50";
+      return "border-violet-300 bg-violet-50 text-violet-800";
     case "Region":
-      return "border-white/14 bg-white/[0.06] text-slate-100";
+      return "border-[var(--color-border)] bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]";
   }
 }
 
@@ -150,11 +150,11 @@ export function LocationInput({
     >
       <label
         htmlFor={inputId}
-        className="flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300"
+        className="flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--color-text-muted)]"
       >
         <span>{label}</span>
         {selectedLocation ? (
-          <span className="rounded-md border border-cyan-200/25 bg-cyan-300/10 px-2 py-0.5 text-[10px] tracking-[0.16em] text-cyan-100">
+          <span className="rounded-md border border-teal-300 bg-teal-50 px-2 py-0.5 text-[10px] tracking-[0.16em] text-teal-800">
             locked
           </span>
         ) : null}
@@ -210,10 +210,10 @@ export function LocationInput({
               setIsOpen(false);
             }
           }}
-          className={`h-14 w-full rounded-xl border bg-white/[0.045] px-4 pr-12 text-base text-slate-50 outline-none transition duration-200 placeholder:text-slate-400 focus:bg-cyan-200/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.08)] disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={`field-control h-12 w-full pr-12 ${
             fieldError
               ? "border-rose-300/55 focus:border-rose-200/75"
-              : "border-white/12 focus:border-cyan-200/55"
+              : ""
           }`}
         />
         {value && !disabled ? (
@@ -226,15 +226,15 @@ export function LocationInput({
               onValueChange("");
               inputRef.current?.focus();
             }}
-            className="absolute inset-y-0 right-1.5 my-auto flex size-10 items-center justify-center rounded-lg text-lg text-slate-300 transition hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-100/70"
+            className="absolute inset-y-0 right-1.5 my-auto flex size-10 items-center justify-center rounded-md text-lg text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-focus)]"
           >
             <span aria-hidden="true">×</span>
           </button>
         ) : null}
       </div>
       {selectedLocation ? (
-        <p id={helperId} className="min-h-4 text-xs leading-5 text-slate-400">
-          <span className={isApproximateSuggestion(selectedLocation) ? "text-amber-100/85" : "text-cyan-100/85"}>
+        <p id={helperId} className="min-h-4 text-xs leading-5 text-[var(--color-text-faint)]">
+          <span className={isApproximateSuggestion(selectedLocation) ? "text-amber-800" : "text-[var(--color-brand)]"}>
             {getPrecisionLabel(getEffectivePrecision(selectedLocation))}
           </span>{" "}
           • {selectedLocation.detail ?? selectedLocation.formattedAddress ?? "Coordinates locked"}
@@ -243,12 +243,12 @@ export function LocationInput({
             : ""}
         </p>
       ) : (
-        <p id={helperId} className="min-h-4 text-xs text-slate-300">
+        <p id={helperId} className="min-h-4 text-xs text-[var(--color-text-muted)]">
           Search exact addresses, places, streets, or cities.
         </p>
       )}
       {fieldError ? (
-        <p id={fieldErrorId} role="alert" className="text-xs leading-5 text-rose-200">
+        <p id={fieldErrorId} role="alert" className="text-xs leading-5 text-rose-800">
           {typeof fieldError === "string"
             ? fieldError
             : `${fieldError.title} ${fieldError.message}`}
@@ -258,17 +258,17 @@ export function LocationInput({
         <div
           id={listboxId}
           role="listbox"
-          className="location-suggestions absolute inset-x-0 top-[calc(100%+0.45rem)] z-[90] overflow-hidden rounded-xl border border-cyan-100/16 bg-[#0d1722]/98 shadow-[0_24px_70px_rgba(1,8,16,0.58)] backdrop-blur-xl"
+          className="location-suggestions floating-menu absolute inset-x-0 top-[calc(100%+0.45rem)] z-[90] overflow-hidden"
         >
           {isLoading ? (
-            <div className="px-4 py-3 text-sm text-slate-300">Searching route stops...</div>
+            <div className="px-4 py-3 text-sm text-[var(--color-text-muted)]">Searching route stops...</div>
           ) : null}
           {!isLoading && error ? (
-            <div className="space-y-2 px-4 py-3 text-sm text-rose-100">
+            <div className="space-y-2 px-4 py-3 text-sm text-rose-800">
               <p className="font-semibold">{error.title}</p>
-              <p className="text-xs leading-5 text-rose-100/80">{error.message}</p>
+              <p className="text-xs leading-5 text-rose-700">{error.message}</p>
               {error.correlationId ? (
-                <p className="font-mono text-[10px] text-slate-400">
+                <p className="font-mono text-[10px] text-[var(--color-text-faint)]">
                   Reference: {error.correlationId}
                 </p>
               ) : null}
@@ -284,7 +284,7 @@ export function LocationInput({
             </div>
           ) : null}
           {!isLoading && !error && suggestions.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-300">
+            <div className="px-4 py-3 text-sm text-[var(--color-text-muted)]">
               No matches yet. Try a city, address, or landmark.
             </div>
           ) : null}
@@ -309,12 +309,12 @@ export function LocationInput({
                     }}
                     className={`group flex min-h-16 w-full flex-col gap-2 px-4 py-3 text-left outline-none transition ${
                       isActive
-                        ? "bg-cyan-100/[0.09]"
-                        : "hover:bg-cyan-100/[0.07] focus-visible:bg-cyan-100/[0.09]"
+                        ? "bg-[var(--color-brand-soft)]"
+                        : "hover:bg-[var(--color-surface-subtle)] focus-visible:bg-[var(--color-brand-soft)]"
                     }`}
                   >
                     <span className="flex items-start justify-between gap-3">
-                      <span className="text-sm font-semibold text-slate-50 transition group-hover:text-white">
+                      <span className="text-sm font-semibold text-[var(--color-text)] transition group-hover:text-[var(--color-brand)]">
                         {suggestion.primaryLabel || suggestion.label}
                       </span>
                       <span
@@ -325,8 +325,8 @@ export function LocationInput({
                         {suggestion.placeType}
                       </span>
                     </span>
-                    <span className="text-xs leading-5 text-slate-400">
-                      <span className={isApproximateSuggestion(suggestion) ? "text-amber-100/80" : "text-cyan-100/75"}>
+                    <span className="text-xs leading-5 text-[var(--color-text-faint)]">
+                      <span className={isApproximateSuggestion(suggestion) ? "text-amber-800" : "text-[var(--color-brand)]"}>
                         {getPrecisionLabel(getEffectivePrecision(suggestion))}
                       </span>{" "}
                       • {suggestion.detail || suggestion.formattedAddress || "Location match"}

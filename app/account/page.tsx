@@ -12,53 +12,53 @@ export default function AccountPage() {
   );
 
   return (
-    <main className="min-h-screen pb-16 pt-6">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <section className="glass-panel rounded-2xl p-6 sm:p-8">
+    <main className="min-h-screen pb-16 pt-10">
+      <div className="page-container max-w-5xl">
+        <section className="border-b border-[var(--color-border)] pb-10">
           <p className="eyebrow">Optional account</p>
           <div className="mt-3 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.72fr)]">
             <div>
-              <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+              <h1 className="text-4xl font-semibold tracking-tight text-[var(--color-text)] sm:text-5xl">
                 Keep trips available across devices.
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
+              <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--color-text-muted)]">
                 An account is only for convenience. Route analysis, danger windows, departure
                 comparisons, and strategy guidance remain available without signing in.
               </p>
-              <ul className="mt-6 grid gap-3 text-sm leading-6 text-slate-200 sm:grid-cols-2">
+              <ul className="mt-6 grid border-t border-[var(--color-border)] text-sm leading-6 text-[var(--color-text-muted)] sm:grid-cols-2">
                 {[
                   "Sync saved trip summaries across devices",
                   "Re-run a familiar route with fresh forecasts",
                   "Delete individual trips or clear account history",
                   "Keep local guest history until you choose to import it",
                 ].map((benefit) => (
-                  <li key={benefit} className="rounded-xl border border-white/10 bg-black/10 px-4 py-3">
+                  <li key={benefit} className="border-b border-[var(--color-border)] py-3 sm:pr-4 sm:odd:border-r sm:even:pl-4">
                     {benefit}
                   </li>
                 ))}
               </ul>
             </div>
 
-            <aside className="rounded-xl border border-white/10 bg-[#0d2029] p-5">
-              <p className="text-sm font-semibold text-white">
+            <aside className="feature-surface p-5">
+              <p className="text-sm font-semibold text-[var(--color-text)]">
                 {accountInfrastructureConfigured
                   ? "Account infrastructure detected"
                   : "Accounts are not enabled in this preview"}
               </p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
+              <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
                 {accountInfrastructureConfigured
                   ? "The deployment has database and identity settings, but the account UI remains disabled until the configured provider has passed deployment validation."
                   : "A secure database and identity provider have not been configured. SnowRoute will not simulate a login or store credentials insecurely."}
               </p>
               <Link
                 href="/analyze-trip"
-                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#76d5d1] px-4 text-sm font-bold text-[#07161d] transition hover:bg-[#9be4e0]"
+                className="button-primary mt-5 w-full"
               >
                 Continue without an account
               </Link>
               <Link
                 href="/history"
-                className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-white/12 px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.05]"
+                className="button-secondary mt-3 w-full"
               >
                 View local trip history
               </Link>
@@ -66,9 +66,9 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-cyan-100/12 bg-cyan-300/[0.045] p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-white">Precise-location privacy</h2>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">
+        <section className="mt-8 bg-[var(--color-brand-soft)] p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-[var(--color-text)]">Precise-location privacy</h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--color-text-muted)]">
             Saved routes can reveal home, work, and travel patterns. Local guest history stays
             in this browser and is bounded to recent compact summaries. If cloud accounts are
             enabled later, importing local trips will be explicit and optional; saved trips will

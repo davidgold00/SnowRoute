@@ -76,7 +76,7 @@ export function TimeZoneSelector({
       <div ref={rootRef} className="relative space-y-2">
         <label
           htmlFor={inputId}
-          className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300"
+          className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--color-text-muted)]"
         >
           Time zone
         </label>
@@ -129,14 +129,14 @@ export function TimeZoneSelector({
               setQuery("");
             }
           }}
-          className="h-12 w-full rounded-xl border border-white/12 bg-white/[0.045] px-4 text-sm font-medium text-slate-50 outline-none transition placeholder:text-slate-400 focus:border-cyan-200/60 focus:bg-cyan-200/[0.06] focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="field-control h-12 w-full"
         />
 
         {isOpen ? (
           <div
             id={listboxId}
             role="listbox"
-            className="absolute inset-x-0 top-[calc(100%+0.45rem)] z-[80] overflow-hidden rounded-xl border border-cyan-100/16 bg-[#0d1722]/98 shadow-[0_24px_70px_rgba(1,8,16,0.58)] backdrop-blur-xl"
+            className="floating-menu absolute inset-x-0 top-[calc(100%+0.45rem)] z-[80] overflow-hidden"
           >
             {options.length > 0 ? (
               <ul className="max-h-72 overflow-y-auto overscroll-contain py-1.5">
@@ -156,14 +156,14 @@ export function TimeZoneSelector({
                         onClick={() => selectOption(option)}
                         className={`flex min-h-14 w-full flex-col justify-center px-4 py-3 text-left outline-none transition ${
                           isActive || isSelected
-                            ? "bg-cyan-100/[0.09]"
-                            : "hover:bg-cyan-100/[0.06]"
+                            ? "bg-[var(--color-brand-soft)]"
+                            : "hover:bg-[var(--color-surface-subtle)]"
                         }`}
                       >
-                        <span className="text-sm font-semibold text-slate-50">
+                        <span className="text-sm font-semibold text-[var(--color-text)]">
                           {option.label}
                         </span>
-                        <span className="mt-1 text-xs text-slate-300">
+                        <span className="mt-1 text-xs text-[var(--color-text-muted)]">
                           {option.region} • {option.value}
                         </span>
                       </button>
@@ -172,7 +172,7 @@ export function TimeZoneSelector({
                 })}
               </ul>
             ) : (
-              <p className="px-4 py-3 text-sm text-slate-300">
+              <p className="px-4 py-3 text-sm text-[var(--color-text-muted)]">
                 No matching time zones. Try a city like Toronto, Denver, or Vancouver.
               </p>
             )}
@@ -181,8 +181,8 @@ export function TimeZoneSelector({
       </div>
 
       {originOption ? (
-        <div className="rounded-xl border border-cyan-200/18 bg-cyan-300/[0.08] p-3">
-          <p className="text-sm leading-5 text-cyan-50">
+        <div className="bg-[var(--color-brand-soft)] p-3">
+          <p className="text-sm leading-5 text-[var(--color-text)]">
             Origin appears to use{" "}
             <span className="font-semibold">{originOption.value}</span>.
           </p>
@@ -191,7 +191,7 @@ export function TimeZoneSelector({
               type="button"
               onClick={onUseOriginTimeZone}
               disabled={disabled}
-              className="min-h-10 rounded-lg border border-cyan-100/30 bg-cyan-200/12 px-3 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-200/18 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="button-secondary min-h-10"
             >
               Use origin time zone
             </button>
@@ -199,7 +199,7 @@ export function TimeZoneSelector({
               type="button"
               onClick={onDismissOriginTimeZone}
               disabled={disabled}
-              className="min-h-10 rounded-lg border border-white/12 bg-white/[0.04] px-3 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="button-secondary min-h-10"
             >
               Keep current
             </button>
@@ -207,7 +207,7 @@ export function TimeZoneSelector({
         </div>
       ) : null}
 
-      <p className="text-xs leading-5 text-slate-300">
+      <p className="text-xs leading-5 text-[var(--color-text-muted)]">
         Departure time is interpreted in this time zone. Search by city, region, or
         IANA name.
       </p>

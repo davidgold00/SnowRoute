@@ -25,15 +25,15 @@ export function SameCityControl({
 
   return (
     <fieldset disabled={disabled} aria-describedby={`${descriptionId} ${statusId}`}>
-      <legend className="text-sm font-semibold text-slate-100">
+      <legend className="text-sm font-semibold text-[#202927]">
         Is the destination in the same city?
       </legend>
-      <p id={descriptionId} className="mt-1 text-xs leading-5 text-slate-400">
+      <p id={descriptionId} className="mt-1 text-xs leading-5 text-[#6d7a76]">
         {sameCity && cityName
           ? `Both points will be searched within ${cityName}.`
           : "Choose No for an intercity trip, or Yes to reuse the starting city."}
       </p>
-      <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black/10 p-1.5">
+      <div className="mt-3 grid max-w-xs grid-cols-2 gap-1 rounded-lg border border-[#c8cec8] bg-[#eceee9] p-1">
         {[
           { value: true, label: "Yes" },
           { value: false, label: "No" },
@@ -42,10 +42,10 @@ export function SameCityControl({
           return (
             <label
               key={option.label}
-              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-4 text-sm font-semibold transition ${
+              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-4 text-sm font-semibold transition ${
                 selected
-                  ? "border-cyan-200/35 bg-cyan-300/[0.13] text-white"
-                  : "border-transparent text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                  ? "border-[#a9c8c2] bg-white text-[#155d59] shadow-sm"
+                  : "border-transparent text-[#596762] hover:text-[#202927]"
               }`}
             >
               <input

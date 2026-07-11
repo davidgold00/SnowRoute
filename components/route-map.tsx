@@ -59,15 +59,15 @@ export default function RouteMap({
 }) {
   if (!analysis) {
     return (
-      <div className="map-shell flex min-h-[520px] items-center justify-center rounded-2xl border border-white/10 bg-[#0b1322]/80 p-10 text-center">
+      <div className="map-shell flex min-h-[420px] items-center justify-center border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-10 text-center">
         <div className="max-w-md space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/70">
+          <p className="eyebrow">
             Route Map
           </p>
-          <h2 className="text-2xl font-semibold tracking-tight text-white">
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">
             Weather-aware route risk, once you hit analyze
           </h2>
-          <p className="text-sm leading-6 text-slate-300">
+          <p className="text-sm leading-6 text-[var(--color-text-muted)]">
             SnowRoute will render the route geometry, color each segment by risk, and
             expose clickable checkpoints with ETA, conditions, and the drivers behind the score.
           </p>
@@ -95,7 +95,7 @@ export default function RouteMap({
   return (
     <section
       aria-label="Route risk map"
-      className="map-shell overflow-hidden rounded-2xl border border-white/10"
+      className="map-shell overflow-hidden border border-[var(--color-border)]"
     >
       <MapContainer
         center={routePath[0]}
@@ -138,7 +138,7 @@ export default function RouteMap({
               center={[sample.coordinate.lat, sample.coordinate.lon]}
               radius={isActive ? 11 : 8}
               pathOptions={{
-                color: "#0b1322",
+                color: "#ffffff",
                 weight: isActive ? 3 : 2,
                 fillColor: riskColor(sample.label),
                 fillOpacity: 1,
@@ -176,7 +176,7 @@ export default function RouteMap({
           <RiskLegend compact />
         </div>
       </div>
-      <div className="border-t border-white/10 bg-[#0b1524]/92 px-4 py-3 text-sm leading-6 text-slate-200">
+      <div className="border-t border-[var(--color-border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--color-text-muted)]">
         {activeSample ? (
           <p>
             Selected checkpoint: {activeSample.etaDisplay}, {activeSample.distanceKm.toFixed(0)} km,

@@ -180,24 +180,24 @@ export function PlaceCombobox({
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-300">
+          <p className="text-xs font-semibold text-[#50605b]">
             {label}
           </p>
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-100">
+          <span className="text-xs font-semibold text-[#2f7654]">
             Confirmed
           </span>
         </div>
-        <div className="flex min-h-16 items-center justify-between gap-4 rounded-xl border border-emerald-200/25 bg-emerald-300/[0.07] px-4 py-3">
+        <div className="selected-control flex min-h-14 items-center justify-between gap-4 px-3.5 py-2.5">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{place.primaryText}</p>
-            <p className="mt-1 truncate text-xs text-slate-300">
+            <p className="truncate text-sm font-semibold text-[#202927]">{place.primaryText}</p>
+            <p className="mt-0.5 truncate text-xs text-[#596762]">
               {place.secondaryText ?? place.formattedAddress}
             </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100/75">
+            <p className="mt-1 text-xs font-medium text-[#176c68]">
               {precisionLabel(place)} · {placeTypeLabel(place)}
             </p>
             {place.cityRelationship === "NEAR_SELECTED_CITY" ? (
-              <p className="mt-1 text-xs leading-5 text-amber-100/85">
+              <p className="mt-1 text-xs leading-5 text-[#796027]">
                 Near the selected city; confirm this is the intended route point.
               </p>
             ) : null}
@@ -209,13 +209,13 @@ export function PlaceCombobox({
               onClear();
               window.requestAnimationFrame(() => inputRef.current?.focus());
             }}
-            className="min-h-11 shrink-0 rounded-lg border border-white/12 px-3 text-xs font-semibold text-cyan-50 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-55"
+            className="min-h-11 shrink-0 rounded-md px-3 text-xs font-semibold text-[#176c68] transition hover:bg-[#dbece9] disabled:cursor-not-allowed disabled:opacity-55"
           >
             Change
           </button>
         </div>
         {error ? (
-          <p role="alert" className="text-xs leading-5 text-rose-200">{error}</p>
+          <p role="alert" className="text-xs leading-5 text-[#b33a32]">{error}</p>
         ) : null}
       </div>
     );
@@ -248,28 +248,28 @@ export function PlaceCombobox({
         onPointerDown={(event) => event.preventDefault()}
         onMouseEnter={() => setActiveIndex(index)}
         onClick={() => choosePlace(result)}
-        className={`min-h-16 cursor-pointer px-4 py-3 outline-none transition ${
-          active ? "bg-cyan-100/[0.11]" : "hover:bg-white/[0.055]"
+        className={`min-h-14 cursor-pointer px-4 py-3 outline-none transition ${
+          active ? "bg-[#e3f0ee]" : "hover:bg-[#f3f4f1]"
         }`}
       >
         <span className="flex items-start justify-between gap-3">
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold text-white">
+            <span className="block truncate text-sm font-semibold text-[#202927]">
               {result.primaryText}
             </span>
-            <span className="mt-1 block text-xs leading-5 text-slate-400">
+            <span className="mt-1 block text-xs leading-5 text-[#6d7a76]">
               {result.secondaryText ?? result.formattedAddress}
             </span>
           </span>
-          <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
+          <span className={`shrink-0 rounded border px-2 py-1 text-[10px] font-semibold ${
             nearby
-              ? "border-amber-200/25 bg-amber-200/[0.06] text-amber-100"
-              : "border-cyan-200/20 bg-cyan-200/[0.06] text-cyan-100"
+              ? "border-[#ddc995] bg-[#fbf7ed] text-[#796027]"
+              : "border-[#c6d9d5] bg-[#f2f8f6] text-[#176c68]"
           }`}>
             {placeTypeLabel(result)}
           </span>
         </span>
-        <span className="mt-2 block text-[11px] text-slate-500">
+        <span className="mt-1.5 block text-[11px] text-[#6d7a76]">
           {precisionLabel(result)}
           {result.cityRelationship === "NEAR_SELECTED_CITY" ? " · Near the selected city" : ""}
         </span>
@@ -293,10 +293,10 @@ export function PlaceCombobox({
     >
       <label
         htmlFor={inputId}
-        className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-300"
+        className="text-xs font-semibold text-[#384641]"
       >
         {label}
-        <span className="ml-2 font-medium normal-case tracking-normal text-slate-500">
+        <span className="ml-2 font-normal text-[#6d7a76]">
           Optional
         </span>
       </label>
@@ -349,11 +349,7 @@ export function PlaceCombobox({
               setActiveIndex(-1);
             }
           }}
-          className={`h-14 w-full rounded-xl border bg-white/[0.045] px-4 pr-12 text-base text-slate-50 outline-none transition placeholder:text-slate-400 focus:bg-cyan-200/[0.06] disabled:cursor-not-allowed disabled:opacity-55 ${
-            error
-              ? "border-rose-300/55 focus:border-rose-200"
-              : "border-white/12 focus:border-cyan-200/55"
-          }`}
+          className="field-control h-13 px-3.5 pr-12 text-base"
         />
         {query && city ? (
           <button
@@ -365,13 +361,13 @@ export function PlaceCombobox({
               setActiveIndex(-1);
               inputRef.current?.focus();
             }}
-            className="absolute inset-y-0 right-1.5 my-auto grid size-11 place-items-center rounded-lg text-lg text-slate-300 transition hover:bg-white/[0.07] hover:text-white"
+            className="absolute inset-y-0 right-1 my-auto grid size-11 place-items-center rounded-md text-lg text-[#6d7a76] transition hover:bg-[#eceee9] hover:text-[#202927]"
           >
             <span aria-hidden="true">×</span>
           </button>
         ) : null}
       </div>
-      <p id={helperId} className="text-xs leading-5 text-slate-400">
+      <p id={helperId} className="text-xs leading-5 text-[#6d7a76]">
         {!city
           ? "Select a city first."
           : query.trim()
@@ -382,24 +378,24 @@ export function PlaceCombobox({
         {statusMessage}
       </p>
       {error ? (
-        <p id={errorId} role="alert" className="text-xs leading-5 text-rose-200">
+        <p id={errorId} role="alert" className="text-xs leading-5 text-[#b33a32]">
           {error}
         </p>
       ) : null}
 
       {showListbox ? (
         <div
-          className="absolute inset-x-0 top-[calc(100%+0.45rem)] z-[120] max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-cyan-100/18 bg-[#0d1722]/[0.99] shadow-[0_24px_70px_rgba(1,8,16,0.65)]"
+          className="floating-menu absolute inset-x-0 top-[calc(100%+0.4rem)] z-[120] max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain"
         >
           {outsideCandidate ? (
-            <div role="alert" className="space-y-3 border-b border-amber-200/20 bg-amber-200/[0.07] px-4 py-4">
+            <div role="alert" className="space-y-3 border-b border-[#ead9ad] bg-[#fbf7ed] px-4 py-4">
               <div>
-                <p className="text-sm font-semibold text-amber-50">
+                <p className="text-sm font-semibold text-[#694914]">
                   {outsideCandidate.cityRelationship === "CITY_MEMBERSHIP_UNKNOWN"
                     ? `SnowRoute could not verify that this result is inside ${city?.cityName}.`
                     : `This result appears to be in ${outsideCandidate.cityName ?? "another city"}, not ${city?.cityName}.`}
                 </p>
-                <p className="mt-1 text-xs leading-5 text-slate-300">
+                <p className="mt-1 text-xs leading-5 text-[#796027]">
                   {outsideCandidate.cityRelationship === "CITY_MEMBERSHIP_UNKNOWN"
                     ? "Confirm the displayed address carefully, or keep searching within the selected city."
                     : "Change the city before using this location, or keep searching within the selected city."}
@@ -411,7 +407,7 @@ export function PlaceCombobox({
                     ref={warningActionRef}
                     type="button"
                     onClick={() => acceptPlace(outsideCandidate)}
-                    className="min-h-11 rounded-lg bg-amber-100 px-3 text-xs font-bold text-amber-950"
+                    className="min-h-11 rounded-md bg-[#a66516] px-3 text-xs font-bold text-white"
                   >
                     Use this result cautiously
                   </button>
@@ -430,7 +426,7 @@ export function PlaceCombobox({
                           ?.focus();
                       });
                     }}
-                    className="min-h-11 rounded-lg bg-amber-100 px-3 text-xs font-bold text-amber-950"
+                    className="min-h-11 rounded-md bg-[#a66516] px-3 text-xs font-bold text-white"
                   >
                     Search {outsideCandidate.cityName}
                   </button>
@@ -447,7 +443,7 @@ export function PlaceCombobox({
                     setOutsideCandidate(null);
                     window.requestAnimationFrame(() => inputRef.current?.focus());
                   }}
-                  className="min-h-11 rounded-lg border border-white/15 px-3 text-xs font-semibold text-white"
+                  className="button-secondary min-h-11 px-3 text-xs"
                 >
                   Keep searching in {city?.cityName}
                 </button>
@@ -455,15 +451,15 @@ export function PlaceCombobox({
             </div>
           ) : null}
           {isLoading ? (
-            <div className="px-4 py-4 text-sm text-slate-300">
+            <div className="px-4 py-4 text-sm text-[#596762]">
               Searching within {city?.cityName}…
             </div>
           ) : null}
           {!isLoading && searchError ? (
-            <div className="space-y-3 px-4 py-4 text-sm text-rose-100">
+            <div className="space-y-3 px-4 py-4 text-sm text-[#8c312b]">
               <div>
                 <p className="font-semibold">{searchError.title}</p>
-                <p className="mt-1 text-xs leading-5 text-rose-100/80">
+                <p className="mt-1 text-xs leading-5 text-[#7b514d]">
                   {searchError.message}
                 </p>
               </div>
@@ -471,7 +467,7 @@ export function PlaceCombobox({
                 <button
                   type="button"
                   onClick={retrySearch}
-                  className="min-h-11 rounded-lg border border-rose-100/25 px-3 text-xs font-semibold"
+                  className="button-secondary min-h-11 px-3 text-xs"
                 >
                   Retry search
                 </button>
@@ -479,12 +475,12 @@ export function PlaceCombobox({
             </div>
           ) : null}
           {!isLoading && !searchError && status === "not-found" ? (
-            <div className="space-y-3 px-4 py-4 text-sm text-slate-300">
+            <div className="space-y-3 px-4 py-4 text-sm text-[#596762]">
               <div>
-                <p className="font-semibold text-slate-100">
+                <p className="font-semibold text-[#202927]">
                   No matches found in {city?.cityName}.
                 </p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">
+                <p className="mt-1 text-xs leading-5 text-[#6d7a76]">
                   Check the street number, try a business or landmark, or continue with the city.
                 </p>
               </div>
@@ -499,7 +495,7 @@ export function PlaceCombobox({
                     usesCityFallback: true,
                   });
                 }}
-                className="min-h-11 rounded-lg border border-cyan-100/25 bg-cyan-200/[0.07] px-3 text-xs font-semibold text-cyan-50"
+                className="button-secondary min-h-11 px-3 text-xs text-[#176c68]"
               >
                 Use central {city?.cityName}
               </button>
@@ -513,7 +509,7 @@ export function PlaceCombobox({
             >
               {results.length > 0 ? (
                 <div role="group" aria-label={`Matches in ${city?.cityName ?? "the selected city"}`}>
-                  <p className="border-b border-white/8 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-100/70">
+                  <p className="border-b border-[#e4e7e2] px-4 py-2 text-xs font-semibold text-[#50605b]">
                     Matches in {city?.cityName}
                   </p>
                   <ul role="presentation" className="py-1">
@@ -525,9 +521,9 @@ export function PlaceCombobox({
                 <div
                   role="group"
                   aria-label="Nearby matches outside the selected city"
-                  className="border-t border-white/10"
+                  className="border-t border-[#d9ddd6]"
                 >
-                  <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-100/75">
+                  <p className="px-4 py-2 text-xs font-semibold text-[#796027]">
                     Nearby matches outside the selected city
                   </p>
                   <ul role="presentation" className="py-1">
@@ -540,7 +536,7 @@ export function PlaceCombobox({
             </div>
           ) : null}
           {unitRoutingNote ? (
-            <p className="border-t border-white/10 px-4 py-3 text-xs leading-5 text-amber-100/80">
+            <p className="border-t border-[#d9ddd6] px-4 py-3 text-xs leading-5 text-[#796027]">
               {unitRoutingNote}
             </p>
           ) : null}

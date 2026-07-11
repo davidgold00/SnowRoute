@@ -1,36 +1,36 @@
 export function HowItWorks() {
   return (
-    <details className="glass-panel group rounded-2xl">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-white outline-none transition hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-cyan-100/70 sm:px-6">
+    <details className="surface-panel group overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-[var(--color-text)] outline-none transition hover:bg-[var(--color-surface-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] sm:px-6">
         <span>
-          <span className="block text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+          <span className="eyebrow block">
             About the analysis
           </span>
           <span className="mt-1 block">Read More: How SnowRoute works</span>
         </span>
         <span
           aria-hidden="true"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/12 bg-white/[0.04] text-lg text-cyan-100 transition group-open:rotate-45"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--color-border)] text-lg text-[var(--color-brand)] transition group-open:rotate-45"
         >
           +
         </span>
       </summary>
 
-      <div className="border-t border-white/10 px-5 py-5 sm:px-6 sm:py-6">
+      <div className="border-t border-[var(--color-border)] px-5 py-5 sm:px-6 sm:py-6">
         <div className="max-w-4xl">
-          <p className="text-sm leading-6 text-slate-200">
+          <p className="text-sm leading-6 text-[var(--color-text-muted)]">
             SnowRoute is a forecast-matching planning tool. It does not simply show the
             weather at the start and end of a trip; it estimates what you are likely to
             encounter along the way and when you will encounter it.
           </p>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <article className="rounded-xl border border-white/10 bg-black/10 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/80">
+        <div className="mt-5 grid border-t border-[var(--color-border)] md:grid-cols-2">
+          <article className="border-b border-[var(--color-border)] py-5 md:pr-6">
+            <p className="eyebrow">
               1. Build the route
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
               You choose each city first, then optionally add an address, business, or
               landmark. SnowRoute uses the city&apos;s country, center, and available bounds to
               make place search less ambiguous. A confirmed place becomes the route point;
@@ -40,22 +40,22 @@ export function HowItWorks() {
             </p>
           </article>
 
-          <article className="rounded-xl border border-white/10 bg-black/10 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/80">
+          <article className="border-b border-[var(--color-border)] py-5 md:border-l md:pl-6">
+            <p className="eyebrow">
               2. Sample the drive
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
               SnowRoute places evenly spaced checkpoints along the route. Each checkpoint
               receives an estimated arrival time based on its distance along the drive,
               so a storm arriving later can be matched to the correct part of the trip.
             </p>
           </article>
 
-          <article className="rounded-xl border border-white/10 bg-black/10 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/80">
+          <article className="border-b border-[var(--color-border)] py-5 md:pr-6">
+            <p className="eyebrow">
               3. Match hourly weather
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
               Hourly forecast data comes from Open-Meteo. SnowRoute requests temperature,
               precipitation, snowfall, visibility, wind, gusts, weather codes, and
               day/night state for the checkpoint coordinates in supported multi-location
@@ -66,11 +66,11 @@ export function HowItWorks() {
             </p>
           </article>
 
-          <article className="rounded-xl border border-white/10 bg-black/10 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/80">
+          <article className="border-b border-[var(--color-border)] py-5 md:border-l md:pl-6">
+            <p className="eyebrow">
               4. Explain the risk
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
               The versioned, explainable model evaluates snow and blowing snow, freezing
               precipitation and icing proxies, fog and visibility, wind, heavy rain and
               hydroplaning proxies, thunderstorms, hail, extreme temperature, and night
@@ -81,11 +81,11 @@ export function HowItWorks() {
             </p>
           </article>
 
-          <article className="rounded-xl border border-white/10 bg-black/10 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/80">
+          <article className="border-b border-[var(--color-border)] py-5 md:pr-6">
+            <p className="eyebrow">
               5. Compare departure times
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
               The departure optimizer evaluates eligible future hours while preserving the
               selected minute and excluding past same-day or invalid daylight-saving-time
               choices. It compares overall risk, worst checkpoints, hazard-window counts,
@@ -94,11 +94,11 @@ export function HowItWorks() {
             </p>
           </article>
 
-          <article className="rounded-xl border border-white/10 bg-black/10 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/80">
+          <article className="border-b border-[var(--color-border)] py-5 md:border-l md:pl-6">
+            <p className="eyebrow">
               6. Prepare suggestions
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
               When you choose See suggestions, sustained High or Severe windows become
               route-relative decision points. The hold indicator combines peak route risk
               with visibility, snowfall, wind, and near-freezing precipitation signals. It
@@ -108,11 +108,11 @@ export function HowItWorks() {
           </article>
         </div>
 
-        <div className="mt-5 rounded-xl border border-cyan-100/12 bg-cyan-300/[0.05] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/80">
+        <div className="mt-5 bg-[var(--color-brand-soft)] p-5">
+          <p className="eyebrow">
             Technology and data sources
           </p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
+          <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
             The interface runs on Next.js and React. OpenRouteService&apos;s Pelias-based
             geocoder supplies normalized city and place candidates, and OpenRouteService
             supplies route directions. Open-Meteo supplies hourly forecast fields; Leaflet
@@ -123,14 +123,14 @@ export function HowItWorks() {
             verify closures or stopping facilities, or guarantee conditions at a specific
             location.
           </p>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-cyan-50">
-            <a href="https://openrouteservice.org/" target="_blank" rel="noreferrer" className="underline decoration-cyan-100/40 underline-offset-4 hover:text-white">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-[var(--color-brand)]">
+            <a href="https://openrouteservice.org/" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-[var(--color-brand-hover)]">
               OpenRouteService
             </a>
-            <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="underline decoration-cyan-100/40 underline-offset-4 hover:text-white">
+            <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-[var(--color-brand-hover)]">
               Open-Meteo
             </a>
-            <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer" className="underline decoration-cyan-100/40 underline-offset-4 hover:text-white">
+            <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-[var(--color-brand-hover)]">
               OpenStreetMap
             </a>
           </div>

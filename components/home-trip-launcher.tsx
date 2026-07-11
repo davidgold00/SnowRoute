@@ -152,15 +152,15 @@ export function HomeTripLauncher() {
     return (
       <section
         aria-label="Preparing trip form"
-        className="min-h-[680px] rounded-2xl border border-white/10 bg-[#0b1c24] p-5 motion-safe:animate-pulse"
+        className="feature-surface min-h-[620px] p-5 motion-safe:animate-pulse sm:p-7"
       >
-        <div className="h-5 w-36 rounded bg-white/[0.08]" />
+        <div className="h-5 w-36 rounded bg-[#dfe4de]" />
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <div className="h-20 rounded-xl bg-white/[0.05]" />
-          <div className="h-20 rounded-xl bg-white/[0.05]" />
+          <div className="h-20 rounded-lg bg-[#eceee9]" />
+          <div className="h-20 rounded-lg bg-[#eceee9]" />
         </div>
-        <div className="mt-6 h-36 rounded-xl bg-white/[0.05]" />
-        <div className="mt-6 h-32 rounded-xl bg-white/[0.05]" />
+        <div className="mt-6 h-36 rounded-lg bg-[#eceee9]" />
+        <div className="mt-6 h-32 rounded-lg bg-[#eceee9]" />
       </section>
     );
   }
@@ -169,16 +169,16 @@ export function HomeTripLauncher() {
     <form
       onSubmit={submit}
       noValidate
-      className="rounded-2xl border border-white/10 bg-[#0b1c24] p-4 shadow-[0_20px_50px_rgba(0,7,10,0.28)] sm:p-5"
+      className="feature-surface p-5 sm:p-7"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/8 pb-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#d9ddd6] pb-5">
         <div>
-          <p className="text-sm font-semibold text-white">Plan a route</p>
-          <p className="mt-1 text-xs leading-5 text-slate-400">
+          <p className="text-lg font-semibold text-[#202927]">Plan a route</p>
+          <p className="mt-1 text-sm leading-5 text-[#596762]">
             Choose cities first. Exact addresses and places are optional.
           </p>
         </div>
-        <span className="rounded-md border border-cyan-200/20 bg-cyan-300/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-cyan-100">
+        <span className="text-xs font-semibold text-[#6d7a76]">
           No account needed
         </span>
       </div>
@@ -205,8 +205,8 @@ export function HomeTripLauncher() {
         />
       </div>
 
-      <div className="mt-5 border-t border-white/10 pt-5">
-        <p className="mb-3 text-sm font-semibold text-slate-100">Departure</p>
+      <div className="mt-6 border-t border-[#d9ddd6] pt-5">
+        <p className="mb-3 text-sm font-semibold text-[#202927]">Departure</p>
         <DeparturePicker
           value={departureTimeLocal}
           timeZone={timeZone}
@@ -218,7 +218,7 @@ export function HomeTripLauncher() {
       </div>
 
       {error ? (
-        <p role="alert" className="mt-4 rounded-lg border border-rose-300/20 bg-rose-300/[0.08] px-3 py-2.5 text-sm text-rose-100">
+        <p role="alert" className="page-alert mt-4 rounded-md px-3 py-2.5 text-sm">
           {error}
         </p>
       ) : null}
@@ -226,11 +226,11 @@ export function HomeTripLauncher() {
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
           type="submit"
-          className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#76d5d1] px-5 text-sm font-bold text-[#07161d] shadow-[0_10px_24px_rgba(64,180,177,0.16)] transition hover:bg-[#9be4e0]"
+          className="button-primary min-h-12 px-5"
         >
           Continue to analysis
         </button>
-        <p className="text-xs leading-5 text-slate-400">
+        <p className="text-xs leading-5 text-[#6d7a76]">
           You can review every detail before the route is analyzed.
         </p>
       </div>

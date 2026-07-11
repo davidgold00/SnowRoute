@@ -19,17 +19,17 @@ export default function ErrorPage({
 
   return (
     <main className="mx-auto flex min-h-[70vh] max-w-3xl items-center px-4 py-16 sm:px-6">
-      <section className="glass-panel w-full rounded-2xl p-6 sm:p-8">
+      <section className="surface-panel w-full p-6 sm:p-8">
         <p className="eyebrow">Unexpected interruption</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--color-text)]">
           This view could not finish loading.
         </h1>
-        <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
+        <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--color-text-muted)]">
           Your route details should remain on this device. Try the view again, or return to
           the planner and submit once more.
         </p>
         {error.digest ? (
-          <p className="mt-3 font-mono text-xs text-slate-400">Reference: {error.digest}</p>
+          <p className="mt-3 font-mono text-xs text-[var(--color-text-faint)]">Reference: {error.digest}</p>
         ) : null}
         <div className="mt-6 flex flex-wrap gap-3">
           <button
@@ -41,7 +41,7 @@ export default function ErrorPage({
           </button>
           <Link
             href="/analyze-trip"
-            className="inline-flex min-h-11 items-center rounded-xl border border-white/12 px-5 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.05]"
+            className="button-secondary"
           >
             Return to planner
           </Link>

@@ -8,14 +8,14 @@ function formatDistance(distanceKm: number) {
 
 function getIndicatorTone(score: number) {
   if (score >= 75) {
-    return "border-rose-200/25 bg-rose-300/10 text-rose-50";
+    return "border-[#e2aaa5] bg-[#fff0ef] text-[#a8322c]";
   }
 
   if (score >= 55) {
-    return "border-amber-200/25 bg-amber-300/10 text-amber-50";
+    return "border-[#dec995] bg-[#fbf7ed] text-[#8a5817]";
   }
 
-  return "border-cyan-200/25 bg-cyan-300/10 text-cyan-50";
+  return "border-[#b9d5d0] bg-[#e3f0ee] text-[#155d59]";
 }
 
 export function StrategySuggestions({
@@ -31,14 +31,14 @@ export function StrategySuggestions({
 
   return (
     <section className="space-y-6" aria-label="Weather hold strategy suggestions">
-      <header className="glass-panel rounded-2xl p-5 sm:p-6 lg:p-7">
+      <header className="border-b border-[#d9ddd6] pb-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="eyebrow">Step 3 · Strategy briefing</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#202927] sm:text-3xl">
               Weather-hold plan for this drive
             </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">
+            <p className="mt-3 text-sm leading-6 text-[#596762]">
               A formal, forecast-based briefing that identifies decision points before
               sustained high-risk conditions. It is designed to help you choose a conservative
               pause before conditions deteriorate—not to identify verified facilities or
@@ -51,29 +51,29 @@ export function StrategySuggestions({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="metric-card rounded-xl p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+        <div className="mt-6 grid gap-0 border-y border-[#d9ddd6] sm:grid-cols-3">
+          <div className="metric-card p-4">
+            <p className="text-xs font-medium text-[#6d7a76]">
               Hold points
             </p>
-            <p className="mt-2 text-3xl font-semibold text-white">{strategies.length}</p>
-            <p className="mt-1 text-sm text-slate-300">Before sustained risk windows</p>
+            <p className="mt-2 text-3xl font-semibold text-[#202927]">{strategies.length}</p>
+            <p className="mt-1 text-sm text-[#596762]">Before sustained risk windows</p>
           </div>
-          <div className="metric-card rounded-xl p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+          <div className="metric-card p-4">
+            <p className="text-xs font-medium text-[#6d7a76]">
               Highest hold indicator
             </p>
-            <p className="mt-2 text-3xl font-semibold text-white">{highestIndicator}/100</p>
-            <p className="mt-1 text-sm text-slate-300">Forecast-derived indicator score</p>
+            <p className="mt-2 text-3xl font-semibold text-[#202927]">{highestIndicator}/100</p>
+            <p className="mt-1 text-sm text-[#596762]">Forecast-derived indicator score</p>
           </div>
-          <div className="metric-card rounded-xl p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+          <div className="metric-card p-4">
+            <p className="text-xs font-medium text-[#6d7a76]">
               Forecast quality
             </p>
-            <p className="mt-2 text-3xl font-semibold text-white">
+            <p className="mt-2 text-3xl font-semibold text-[#202927]">
               {analysis.summary.dataQuality.unmatchedSamples === 0 ? "Complete" : "Review"}
             </p>
-            <p className="mt-1 text-sm text-slate-300">
+            <p className="mt-1 text-sm text-[#596762]">
               {analysis.summary.dataQuality.unmatchedSamples === 0
                 ? "All sampled points matched"
                 : `${analysis.summary.dataQuality.unmatchedSamples} point(s) unmatched`}
@@ -87,28 +87,28 @@ export function StrategySuggestions({
           {strategies.map((strategy, index) => (
             <article
               key={strategy.id}
-              className="glass-panel rounded-2xl p-5 sm:p-6"
+              className="feature-surface border-l-4 border-l-[#c05d1e] p-5 sm:p-6"
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                  <p className="text-xs font-semibold text-[#176c68]">
                     Decision point {index + 1}
                   </p>
-                  <h3 className="mt-2 text-xl font-semibold text-white">
+                  <h3 className="mt-2 text-xl font-semibold text-[#202927]">
                     Prepare to hold before {formatDistance(strategy.hazardStart.distanceKm)}
                   </h3>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-[#596762]">
                     Plan the stop at approximately {formatDistance(strategy.holdPoint.distanceKm)}
                     {" "}into the route, before the forecast high-risk stretch beginning around{" "}
                     {strategy.hazardStart.etaDisplay}.
                   </p>
                 </div>
                 <div
-                  className={`rounded-xl border px-4 py-3 text-right ${getIndicatorTone(
+                  className={`rounded-md border px-4 py-3 text-right ${getIndicatorTone(
                     strategy.indicatorScore,
                   )}`}
                 >
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-80">
+                  <p className="text-xs font-semibold opacity-80">
                     {strategy.indicatorLabel} hold indicator
                   </p>
                   <p className="mt-1 text-3xl font-semibold leading-none">
@@ -117,33 +117,33 @@ export function StrategySuggestions({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
-                <div className="rounded-xl border border-white/10 bg-black/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+              <div className="mt-5 grid gap-5 border-t border-[#d9ddd6] pt-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)] xl:divide-x xl:divide-[#d9ddd6]">
+                <div>
+                  <p className="text-sm font-semibold text-[#384641]">
                     Operating instruction
                   </p>
-                  <p className="mt-3 text-sm leading-6 text-slate-100">{strategy.action}</p>
-                  <p className="mt-3 text-xs leading-5 text-slate-400">
+                  <p className="mt-3 text-sm leading-6 text-[#384641]">{strategy.action}</p>
+                  <p className="mt-3 text-xs leading-5 text-[#6d7a76]">
                     A hold point is route-relative only. Confirm an open, legal place to
                     stop with navigation and local road information before departure.
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
+                <div className="xl:pl-5">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+                    <p className="text-sm font-semibold text-[#384641]">
                       Forecast evidence
                     </p>
                     <RiskPill label={strategy.window.label} />
                   </div>
-                  <p className="mt-3 text-sm font-semibold text-white">
+                  <p className="mt-3 text-sm font-semibold text-[#202927]">
                     Peak checkpoint: {strategy.worstSample.score}/100 at{" "}
                     {formatDistance(strategy.worstSample.distanceKm)}
                   </p>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[#596762]">
                     {strategy.evidence.map((item) => (
                       <li key={item} className="flex gap-2">
-                        <span aria-hidden="true" className="text-cyan-200">•</span>
+                        <span aria-hidden="true" className="text-[#176c68]">•</span>
                         <span>{item}</span>
                       </li>
                     ))}
@@ -154,12 +154,12 @@ export function StrategySuggestions({
           ))}
         </div>
       ) : (
-        <section className="glass-panel rounded-2xl p-6">
+        <section className="border-y border-[#d9ddd6] py-6">
           <p className="eyebrow">No scheduled weather hold</p>
-          <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+          <h3 className="mt-2 text-2xl font-semibold tracking-[-0.025em] text-[#202927]">
             No sustained high-risk forecast window was detected.
           </h3>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#596762]">
             Keep conservative driving margins and recheck conditions immediately before leaving.
             Road treatment, crashes, and local warnings can change more quickly than the
             hourly forecast used in this analysis.
@@ -167,12 +167,12 @@ export function StrategySuggestions({
         </section>
       )}
 
-      <section className="rounded-2xl border border-cyan-100/14 bg-cyan-300/[0.055] p-5 sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/80">
+      <section className="rounded-lg border border-[#d9ddd6] bg-[#eceee9] p-5 sm:p-6">
+        <p className="text-sm font-semibold text-[#384641]">
           Method and research basis
         </p>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
-          <p className="text-sm leading-6 text-slate-200">
+          <p className="text-sm leading-6 text-[#50605b]">
             SnowRoute samples the route by estimated arrival time, matches each point to
             an hourly forecast, and marks sustained checkpoints scoring 50+ as high risk.
             The hold-indicator score combines the route risk score with snow, visibility,
@@ -180,19 +180,19 @@ export function StrategySuggestions({
             aid, not a calibrated probability of a crash, closure, required stop, or
             facility availability.
           </p>
-          <p className="text-sm leading-6 text-slate-200">
+          <p className="text-sm leading-6 text-[#50605b]">
             The operational guidance follows National Weather Service advice to avoid
             driving in low visibility and wait for improvement, plus NHTSA guidance to
             adjust departure around the worst weather and plan longer-trip stops. Always
             check active local warnings and road conditions before you leave.
           </p>
         </div>
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-cyan-50">
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-[#176c68]">
           <a
             href="https://www.weather.gov/safety/winter-during"
             target="_blank"
             rel="noreferrer"
-            className="underline decoration-cyan-100/40 underline-offset-4 transition hover:text-white"
+            className="underline decoration-[#a9c8c2] underline-offset-4 transition hover:text-[#105955]"
           >
             National Weather Service: winter storm driving safety
           </a>
@@ -200,7 +200,7 @@ export function StrategySuggestions({
             href="https://www.nhtsa.gov/winter-driving-tips"
             target="_blank"
             rel="noreferrer"
-            className="underline decoration-cyan-100/40 underline-offset-4 transition hover:text-white"
+            className="underline decoration-[#a9c8c2] underline-offset-4 transition hover:text-[#105955]"
           >
             NHTSA: winter driving tips
           </a>

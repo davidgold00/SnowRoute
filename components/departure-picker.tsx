@@ -237,23 +237,23 @@ export function DeparturePicker({
   }
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-4">
+    <section className="rounded-lg bg-[#eceee9] p-3 sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
+          <p className="text-xs font-semibold text-[#50605b]">
             Departure
           </p>
-          <p className="mt-1 text-base font-semibold text-white">
+          <p className="mt-1 text-base font-semibold text-[#202927]">
             {formatSelectedDate(effectiveDateValue)} at {formatClock(selectedMinutes)}
           </p>
         </div>
-        <span className="max-w-full truncate rounded-lg border border-cyan-100/15 bg-cyan-300/8 px-3 py-1.5 text-xs font-medium text-cyan-50">
+        <span className="max-w-full truncate text-xs font-medium text-[#596762]">
           {timeZone}
         </span>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+        <label className="grid gap-1.5 text-xs font-semibold text-[#50605b]">
           Time
           <select
             ref={timeSelectRef}
@@ -262,7 +262,7 @@ export function DeparturePicker({
             aria-describedby={errorId}
             aria-invalid={invalid}
             onChange={(event) => commit(effectiveDateValue, Number(event.target.value))}
-            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="field-control h-11 bg-white px-3 text-sm font-semibold"
           >
             {timeOptions.map((option) => (
               <option key={option} value={option} disabled={option < minimumMinutes}>
@@ -272,7 +272,7 @@ export function DeparturePicker({
           </select>
         </label>
 
-        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+        <label className="grid gap-1.5 text-xs font-semibold text-[#50605b]">
           Month
           <select
             value={selectedMonth}
@@ -280,7 +280,7 @@ export function DeparturePicker({
             aria-describedby={errorId}
             aria-invalid={invalid}
             onChange={(event) => selectMonth(Number(event.target.value))}
-            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="field-control h-11 bg-white px-3 text-sm font-semibold"
           >
             {monthOptions.map((month) => (
               <option key={month} value={month}>
@@ -290,7 +290,7 @@ export function DeparturePicker({
           </select>
         </label>
 
-        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+        <label className="grid gap-1.5 text-xs font-semibold text-[#50605b]">
           Day
           <select
             value={selectedDay}
@@ -305,7 +305,7 @@ export function DeparturePicker({
                 commit(nextDate.dateValue, selectedMinutes);
               }
             }}
-            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="field-control h-11 bg-white px-3 text-sm font-semibold"
           >
             {dayOptions.map((option) => (
               <option key={option.dateValue} value={option.day}>
@@ -315,7 +315,7 @@ export function DeparturePicker({
           </select>
         </label>
 
-        <label className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+        <label className="grid gap-1.5 text-xs font-semibold text-[#50605b]">
           Year
           <select
             value={selectedYear}
@@ -323,7 +323,7 @@ export function DeparturePicker({
             aria-describedby={errorId}
             aria-invalid={invalid}
             onChange={(event) => selectYear(Number(event.target.value))}
-            className="h-11 w-full rounded-lg border border-white/12 bg-[#0d1b25] px-3 text-sm font-semibold normal-case tracking-normal text-slate-50 outline-none transition focus:border-cyan-200/60 focus:shadow-[0_0_0_4px_rgba(125,211,252,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="field-control h-11 bg-white px-3 text-sm font-semibold"
           >
             {yearOptions.map((year) => (
               <option key={year} value={year}>
@@ -334,7 +334,7 @@ export function DeparturePicker({
         </label>
       </div>
 
-      <p className="mt-3 text-xs leading-5 text-slate-400">
+      <p className="mt-3 text-xs leading-5 text-[#6d7a76]">
         Choose from the next 15 forecast days. Today&apos;s passed times are unavailable.
       </p>
     </section>

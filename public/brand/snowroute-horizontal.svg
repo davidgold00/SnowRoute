@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <rect width="48" height="48" rx="10" fill="#F4F3EE"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 48" fill="none">
   <path d="M14 38.5c0-6.4 14-5.8 14-13.2 0-5.7-8-5.4-8-10.4 0-3.7 3.5-5.4 10.5-5.4H36" stroke="#176C68" stroke-width="3.25" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M9 23.75h9M32 23.75h7" stroke="#176C68" stroke-opacity=".42" stroke-width="2" stroke-linecap="round"/>
   <circle cx="14" cy="38.5" r="3" fill="#176C68"/>
   <circle cx="36" cy="9.5" r="3" fill="#176C68"/>
+  <text x="56" y="31" fill="#202927" font-family="Avenir Next, Segoe UI, sans-serif" font-size="23" font-weight="700" letter-spacing="-1">Snow<tspan fill="#176C68">Route</tspan></text>
 </svg>

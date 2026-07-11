@@ -2,76 +2,129 @@ import Link from "next/link";
 
 import { HomeTripLauncher } from "@/components/home-trip-launcher";
 
-const benefits = [
-  {
-    title: "Timed to your drive",
-    body: "Forecasts are matched to when you are expected to reach each part of the route.",
-  },
-  {
-    title: "Focused on the decision",
-    body: "SnowRoute explains the hazards that matter most and whether waiting may reduce exposure.",
-  },
-  {
-    title: "Clear about uncertainty",
-    body: "Confidence and data limits stay visible so a low score is never presented as a guarantee.",
-  },
+const valuePoints = [
+  "Forecasts matched to arrival time",
+  "Hazards explained in plain language",
+  "No account required",
 ];
+
+const steps = [
+  ["Choose the route", "Start with each city, then add exact places only when useful."],
+  ["Match the conditions", "Forecasts are aligned to when you reach each part of the drive."],
+  ["Review the decision", "See whether to go, delay, hold, or avoid—and why."],
+] as const;
 
 export default function Home() {
   return (
-    <main className="min-h-screen pb-14 pt-5">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <section className="grid gap-7 rounded-3xl border border-white/10 bg-[#102630] px-5 py-7 shadow-[0_24px_60px_rgba(0,7,10,0.22)] sm:px-7 sm:py-9 lg:grid-cols-[minmax(0,0.82fr)_minmax(460px,1.18fr)] lg:items-start lg:px-9">
-          <div className="max-w-xl pt-2">
-            <p className="eyebrow">Route-specific hazard guidance</p>
-            <h1 className="display-type mt-4 text-4xl leading-[1.02] text-white sm:text-5xl">
-              Make a clearer call before severe weather meets the road.
+    <main>
+      <section className="border-b border-[#d9ddd6] bg-[#f8f7f3] py-8 sm:py-12 lg:py-16">
+        <div className="page-container grid gap-10 lg:grid-cols-[minmax(0,0.76fr)_minmax(34rem,1.24fr)] lg:items-start lg:gap-14">
+          <div className="max-w-xl lg:sticky lg:top-28">
+            <p className="eyebrow">Route-specific weather guidance</p>
+            <h1 className="display-type mt-4 text-[2.7rem] leading-[0.98] text-[#202927] sm:text-6xl lg:text-[4.25rem]">
+              Know when the drive becomes risky.
             </h1>
-            <p className="mt-5 text-base leading-7 text-slate-300">
-              Enter a route and departure time. SnowRoute checks when forecast hazards may
-              meet your drive, then explains whether to go, wait, or avoid the trip.
+            <p className="mt-6 max-w-lg text-lg leading-8 text-[#50605b]">
+              SnowRoute checks the conditions you are likely to meet along the route and
+              recommends whether to go, delay, hold, or avoid.
             </p>
+
+            <ul className="mt-8 divide-y divide-[#d9ddd6] border-y border-[#d9ddd6] text-sm font-semibold text-[#384641]">
+              {valuePoints.map((point) => (
+                <li key={point} className="flex items-center gap-3 py-3.5">
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#176c68]" />
+                  {point}
+                </li>
+              ))}
+            </ul>
           </div>
 
           <HomeTripLauncher />
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-7" aria-labelledby="benefits-heading">
-          <div className="max-w-2xl">
-            <p className="eyebrow">What you get</p>
-            <h2 id="benefits-heading" className="mt-2 text-2xl font-semibold tracking-tight text-white">
-              The essential guidance, without a wall of weather data.
+      <section className="page-container py-14 sm:py-20" aria-labelledby="result-preview-title">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:items-center">
+          <div className="reading-width">
+            <p className="eyebrow">A decision, not a dashboard</p>
+            <h2 id="result-preview-title" className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-[#202927] sm:text-4xl">
+              The important answer comes first.
             </h2>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {benefits.map((benefit) => (
-              <article
-                key={benefit.title}
-                className="rounded-2xl border border-white/10 bg-[#0d2029] p-5"
-              >
-                <h3 className="text-base font-semibold text-white">{benefit.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{benefit.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-7 rounded-2xl border border-amber-200/15 bg-amber-200/[0.045] p-5 sm:flex sm:items-center sm:justify-between sm:gap-8 sm:p-6">
-          <div className="max-w-3xl">
-            <h2 className="text-lg font-semibold text-white">Plan carefully. Verify locally.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              SnowRoute is forecast-based guidance, not a source for live closures, official
-              warnings, road treatment, or emergency instructions.
+            <p className="mt-4 text-base leading-7 text-[#596762]">
+              Route evidence remains available, but the first view explains the decision,
+              the danger window, and the most useful next action.
             </p>
           </div>
-          <Link
-            href="/about"
-            className="mt-4 inline-flex min-h-11 shrink-0 items-center rounded-lg text-sm font-semibold text-cyan-100 underline decoration-cyan-200/35 underline-offset-4 transition hover:text-white sm:mt-0"
-          >
-            Methodology and limits
+
+          <div className="feature-surface overflow-hidden" aria-label="Example SnowRoute decision">
+            <div className="grid gap-6 border-l-4 border-[#c05d1e] p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-8">
+              <div>
+                <p className="text-sm font-semibold text-[#a14c18]">Delay recommended</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-[-0.025em] text-[#202927]">
+                  A later departure avoids the worst visibility.
+                </h3>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-[#596762]">
+                  Snow and gusting wind overlap west of Ann Arbor from 7:10–8:05 PM.
+                </p>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-7 gap-y-3 border-t border-[#d9ddd6] pt-5 text-sm sm:grid-cols-1 sm:border-l sm:border-t-0 sm:pl-7 sm:pt-0">
+                <div>
+                  <dt className="text-[#6d7a76]">Better departure</dt>
+                  <dd className="mt-1 font-semibold text-[#202927]">8:45 PM</dd>
+                </div>
+                <div>
+                  <dt className="text-[#6d7a76]">Worst risk</dt>
+                  <dd className="mt-1 font-semibold text-[#c05d1e]">High</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-[#d9ddd6] bg-[#eceee9] py-14 sm:py-16" aria-labelledby="how-home-title">
+        <div className="page-container">
+          <p className="eyebrow">How it works</p>
+          <h2 id="how-home-title" className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-[#202927]">
+            Three steps to a clearer call.
+          </h2>
+          <ol className="mt-9 grid gap-8 md:grid-cols-3 md:divide-x md:divide-[#cfd5ce]">
+            {steps.map(([title, body], index) => (
+              <li key={title} className="md:px-7 md:first:pl-0 md:last:pr-0">
+                <span className="font-mono text-sm font-semibold text-[#176c68]">0{index + 1}</span>
+                <h3 className="mt-3 text-lg font-semibold text-[#202927]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596762]">{body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="page-container grid gap-10 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+        <div>
+          <p className="eyebrow">Use it as one source</p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-[-0.025em] text-[#202927]">
+            Check official conditions before leaving.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#596762]">
+            SnowRoute is a planning tool. It does not include live closures, emergency
+            alerts, road treatment, or observed pavement conditions.
+          </p>
+          <Link href="/about" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-[#176c68] underline decoration-[#a9c8c2] underline-offset-4 hover:text-[#105955]">
+            Read the methodology and limits
           </Link>
-        </section>
-      </div>
+        </div>
+        <aside className="border-l border-[#d9ddd6] pl-6">
+          <p className="text-sm font-semibold text-[#202927]">Save trips across devices</p>
+          <p className="mt-2 text-sm leading-6 text-[#596762]">
+            Accounts are optional and not enabled in this preview. Local history works
+            without signing in.
+          </p>
+          <Link href="/account" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#176c68] hover:text-[#105955]">
+            Account and privacy details →
+          </Link>
+        </aside>
+      </section>
     </main>
   );
 }

@@ -37,13 +37,13 @@ function optionColor(label: DepartureTimeOption["label"]) {
 function optionTone(label: DepartureTimeOption["label"]) {
   switch (label) {
     case "Low":
-      return "border-emerald-300/35 bg-emerald-400/12 text-emerald-100";
+      return "border-emerald-300 bg-emerald-50 text-emerald-800";
     case "Moderate":
-      return "border-amber-300/35 bg-amber-400/12 text-amber-100";
+      return "border-amber-300 bg-amber-50 text-amber-800";
     case "High":
-      return "border-orange-300/35 bg-orange-400/12 text-orange-100";
+      return "border-orange-300 bg-orange-50 text-orange-800";
     case "Severe":
-      return "border-rose-300/35 bg-rose-500/14 text-rose-100";
+      return "border-rose-300 bg-rose-50 text-rose-800";
   }
 }
 
@@ -103,19 +103,19 @@ export function DepartureTimeOptimizer({
   ];
 
   return (
-    <section className="glass-panel rounded-2xl p-6">
+    <section className="surface-panel p-5 sm:p-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
+          <p className="eyebrow">
             Departure Optimizer
           </p>
-          <h2 className="text-2xl font-semibold tracking-tight text-white">
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">
             Lowest-risk time to leave
           </h2>
-          <p className="text-sm leading-6 text-slate-300">{optimization.summary}</p>
+          <p className="text-sm leading-6 text-[var(--color-text-muted)]">{optimization.summary}</p>
         </div>
 
-        <div className="grid min-w-full grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] text-center sm:min-w-[420px] lg:min-w-[460px]">
+        <div className="grid min-w-full grid-cols-3 border border-[var(--color-border)] bg-[var(--color-surface-subtle)] text-center sm:min-w-[420px] lg:min-w-[460px]">
           {[
             {
               label: "Lowest-risk time",
@@ -132,27 +132,27 @@ export function DepartureTimeOptimizer({
               value: bestOption ? bestOption.overallScore.toString() : "n/a",
             },
           ].map((item) => (
-            <div key={item.label} className="border-l border-white/8 px-3 py-3 first:border-l-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+            <div key={item.label} className="border-l border-[var(--color-border)] px-3 py-3 first:border-l-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--color-text-faint)]">
                 {item.label}
               </p>
-              <p className="mt-1 text-sm font-semibold text-slate-100">{item.value}</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--color-text)]">{item.value}</p>
             </div>
           ))}
         </div>
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 rounded-xl border border-white/10 bg-[#0b1422]/70 p-4">
+        <div className="min-w-0 border border-[var(--color-border)] bg-white p-4">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+            <p className="eyebrow">
               Lower-risk score by local departure hour
             </p>
             <div className="flex flex-wrap gap-2">
               {legendItems.map((item) => (
                 <span
                   key={item.label}
-                  className="inline-flex items-center gap-2 text-[11px] font-medium text-slate-300"
+                  className="inline-flex items-center gap-2 text-[11px] font-medium text-[var(--color-text-muted)]"
                 >
                   <span
                     aria-hidden="true"
@@ -166,7 +166,7 @@ export function DepartureTimeOptimizer({
           </div>
 
           <div
-            className="relative h-[320px] overflow-hidden rounded-lg border border-white/8 bg-[#08111f]"
+            className="relative h-[320px] overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-subtle)]"
             onMouseLeave={() => setFocusedOptionId(null)}
           >
             <svg
@@ -191,7 +191,7 @@ export function DepartureTimeOptimizer({
                         ? "rgba(52,211,153,0.32)"
                         : value === 50
                           ? "rgba(251,191,36,0.28)"
-                          : "rgba(255,255,255,0.09)"
+                          : "rgba(80,96,91,0.14)"
                     }
                     strokeDasharray="2 2"
                     vectorEffect="non-scaling-stroke"
@@ -206,7 +206,7 @@ export function DepartureTimeOptimizer({
                   x2={(hour / 23) * 100}
                   y1="0"
                   y2="100"
-                  stroke="rgba(255,255,255,0.07)"
+                  stroke="rgba(80,96,91,0.12)"
                   strokeDasharray="2 2"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -239,7 +239,7 @@ export function DepartureTimeOptimizer({
               <polyline
                 points={safetyPath}
                 fill="none"
-                stroke="#d8fff1"
+                stroke="#176c68"
                 strokeWidth="1.4"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -256,8 +256,8 @@ export function DepartureTimeOptimizer({
                     cx={point.x}
                     cy={point.y}
                     r={isBest || isFocused ? 1.9 : 1.15}
-                    fill={isBest ? "#f8fafc" : optionColor(point.option.label)}
-                    stroke="#08111f"
+                    fill={isBest ? "#176c68" : optionColor(point.option.label)}
+                    stroke="#ffffff"
                     strokeWidth="0.65"
                     vectorEffect="non-scaling-stroke"
                     onMouseEnter={() => setFocusedOptionId(point.option.id)}
@@ -267,48 +267,48 @@ export function DepartureTimeOptimizer({
               })}
             </svg>
 
-            <div className="absolute bottom-3 left-12 right-4 flex justify-between text-xs font-semibold text-slate-300">
+            <div className="absolute bottom-3 left-12 right-4 flex justify-between text-xs font-semibold text-[var(--color-text-muted)]">
               {[0, 6, 12, 18, 23].map((hour) => (
                 <span key={hour}>{formatHourTick(hour)}</span>
               ))}
             </div>
-            <div className="absolute left-3 top-5 grid h-[calc(100%-3.5rem)] content-between text-xs text-slate-300">
+            <div className="absolute left-3 top-5 grid h-[calc(100%-3.5rem)] content-between text-xs text-[var(--color-text-muted)]">
               {[100, 75, 50, 25, 0].map((value) => (
                 <span key={value}>{value}</span>
               ))}
             </div>
           </div>
-          <p className="mt-3 text-xs leading-5 text-slate-300">
+          <p className="mt-3 text-xs leading-5 text-[var(--color-text-muted)]">
             Risk margin is 100 minus the modeled route-risk score. A higher margin means
             lower forecast exposure, not guaranteed safe conditions.
           </p>
         </div>
 
         <div className="grid gap-3">
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="bg-[var(--color-brand-soft)] p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-white">
+              <p className="text-sm font-semibold text-[var(--color-text)]">
                 {focusedOption?.id === selectedOption?.id ? "Selected departure" : "Focused hour"}
               </p>
               {focusedOption ? <RiskPill label={focusedOption.label} /> : null}
             </div>
             {focusedOption ? (
               <>
-                <p className="mt-3 text-2xl font-semibold text-white">
+                <p className="mt-3 text-2xl font-semibold text-[var(--color-text)]">
                   {focusedOption.departureTimeDisplay}
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
+                <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
                   Risk margin {focusedOption.safetyScore}/100 • modeled risk{" "}
                   {focusedOption.overallScore}/100
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
+                <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
                   {focusedOption.guidance.headline}
                 </p>
-                <div className="mt-4 rounded-lg border border-white/10 bg-black/10 px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                <div className="mt-4 border-t border-[var(--color-border)] px-1 pt-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
                     Forecast confidence
                   </p>
-                  <p className="mt-1 text-sm text-slate-300">
+                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">
                     {formatCoverage(focusedOption)}
                   </p>
                 </div>
@@ -316,9 +316,9 @@ export function DepartureTimeOptimizer({
             ) : null}
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="border border-[var(--color-border)] bg-white p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-white">Best checked options</p>
+              <p className="text-sm font-semibold text-[var(--color-text)]">Best checked options</p>
               {bestOption ? <RecommendationPill recommendation={bestOption.recommendation} /> : null}
             </div>
             <div className="mt-4 grid gap-2">

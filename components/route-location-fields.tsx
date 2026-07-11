@@ -19,8 +19,8 @@ export type RouteLocationFieldErrors = {
 
 function SectionNumber({ children }: { children: React.ReactNode }) {
   return (
-    <span className="grid size-7 shrink-0 place-items-center rounded-full border border-cyan-100/20 bg-cyan-300/[0.07] font-mono text-[10px] font-semibold text-cyan-100">
-      {children}
+    <span className="shrink-0 font-mono text-xs font-semibold text-[#176c68]">
+      0{children}
     </span>
   );
 }
@@ -37,7 +37,7 @@ function CityFallbackNote({
   }
 
   return (
-    <p className="rounded-lg border border-amber-200/15 bg-amber-200/[0.045] px-3 py-2 text-xs leading-5 text-amber-50/85">
+    <p className="mt-1 text-xs leading-5 text-[#796027]">
       No exact {endpoint === "start" ? "starting" : "destination"} place selected. The route will use an approximate point in {city.cityName}.
     </p>
   );
@@ -66,15 +66,15 @@ export function RouteLocationFields({
         <div className="flex items-center gap-3">
           <SectionNumber>1</SectionNumber>
           <div>
-            <h3 id="starting-location-heading" className="text-sm font-semibold text-white">
+            <h3 id="starting-location-heading" className="text-sm font-semibold text-[#202927]">
               Starting location
             </h3>
             {!compact ? (
-              <p className="mt-0.5 text-xs text-slate-400">Choose the city, then add precision only if useful.</p>
+              <p className="mt-0.5 text-xs text-[#6d7a76]">Choose the city, then add precision only if useful.</p>
             ) : null}
           </div>
         </div>
-        <div className="grid gap-4 rounded-xl border border-white/10 bg-black/10 p-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           <CityCombobox
             label="Starting city"
             query={state.start.cityQuery}
@@ -114,14 +114,14 @@ export function RouteLocationFields({
         </div>
       </section>
 
-      <section className="space-y-3" aria-labelledby="destination-relationship-heading">
+      <section className="section-rule space-y-3 pt-5" aria-labelledby="destination-relationship-heading">
         <div className="flex items-center gap-3">
           <SectionNumber>2</SectionNumber>
-          <h3 id="destination-relationship-heading" className="text-sm font-semibold text-white">
+          <h3 id="destination-relationship-heading" className="text-sm font-semibold text-[#202927]">
             Destination relationship
           </h3>
         </div>
-        <div className="rounded-xl border border-white/10 bg-black/10 p-4">
+        <div>
           <SameCityControl
             sameCity={state.sameCity}
             cityName={state.start.city?.cityName}
@@ -131,21 +131,21 @@ export function RouteLocationFields({
         </div>
       </section>
 
-      <section className="space-y-4" aria-labelledby="destination-location-heading">
+      <section className="section-rule space-y-4 pt-5" aria-labelledby="destination-location-heading">
         <div className="flex items-center gap-3">
           <SectionNumber>3</SectionNumber>
           <div>
-            <h3 id="destination-location-heading" className="text-sm font-semibold text-white">
+            <h3 id="destination-location-heading" className="text-sm font-semibold text-[#202927]">
               Destination
             </h3>
             {state.sameCity && state.start.city ? (
-              <p className="mt-0.5 text-xs text-cyan-100/75">
+              <p className="mt-0.5 text-xs text-[#176c68]">
                 Shared city: {state.start.city.displayName}
               </p>
             ) : null}
           </div>
         </div>
-        <div className={`grid gap-4 rounded-xl border border-white/10 bg-black/10 p-4 ${
+        <div className={`grid gap-5 ${
           state.sameCity ? "" : "md:grid-cols-2"
         }`}>
           {!state.sameCity ? (
@@ -207,14 +207,14 @@ export function RouteLocationFields({
       {state.notice ? (
         <div
           role="status"
-          className="flex items-start justify-between gap-4 rounded-lg border border-cyan-100/15 bg-cyan-300/[0.05] px-3 py-2.5 text-xs leading-5 text-cyan-50"
+          className="inline-alert flex items-start justify-between gap-4 rounded-md px-3 py-2.5 text-xs leading-5"
         >
           <p>{state.notice}</p>
           <button
             type="button"
             aria-label="Dismiss location update"
             onClick={() => dispatch({ type: "DISMISS_LOCATION_NOTICE" })}
-            className="grid size-11 shrink-0 place-items-center rounded-lg text-lg text-cyan-100 transition hover:bg-white/[0.06]"
+            className="grid size-11 shrink-0 place-items-center rounded-md text-lg text-[#176c68] transition hover:bg-[#e3f0ee]"
           >
             <span aria-hidden="true">×</span>
           </button>

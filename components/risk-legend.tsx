@@ -35,12 +35,10 @@ export const RISK_THRESHOLDS: Array<{
 export function RiskLegend({ compact = false }: { compact?: boolean }) {
   return (
     <div
-      className={`rounded-xl border border-white/12 bg-[#0b1524]/90 p-3 text-slate-100 shadow-[0_16px_50px_rgba(4,10,22,0.34)] ${
-        compact ? "" : "backdrop-blur"
-      }`}
+      className={`border border-[var(--color-border)] bg-white/95 p-3 text-[var(--color-text)] shadow-[var(--shadow-surface)] ${compact ? "" : ""}`}
       aria-label="Risk score legend"
     >
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-300">
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-faint)]">
         Risk score
       </p>
       <div className="mt-3 grid gap-2">
@@ -51,16 +49,16 @@ export function RiskLegend({ compact = false }: { compact?: boolean }) {
               aria-hidden="true"
             />
             <span>
-              <span className="font-semibold text-white">{item.label}</span>{" "}
-              <span className="text-slate-300">({item.range})</span>
+              <span className="font-semibold text-[var(--color-text)]">{item.label}</span>{" "}
+              <span className="text-[var(--color-text-muted)]">({item.range})</span>
               {!compact ? (
-                <span className="block text-slate-300">{item.description}</span>
+                <span className="block text-[var(--color-text-muted)]">{item.description}</span>
               ) : null}
             </span>
           </div>
         ))}
       </div>
-      <p className="mt-3 text-xs leading-5 text-slate-300">
+      <p className="mt-3 text-xs leading-5 text-[var(--color-text-muted)]">
         Checkpoint markers use the same scale as route segments.
       </p>
     </div>
